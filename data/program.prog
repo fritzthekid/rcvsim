@@ -1,0 +1,5 @@
+[
+a1, b5, c7,	%% shift data to memory, location #c7b5
+a5, d0,		%% shift data from Reg d0, Alu
+c7, d1  	%% execute operation c7 with Alu and c7   
+].
