@@ -1,0 +1,6 @@
+-sname rcvsim
+
+-setcookie rcvsim_cookie
+
++K true
++A30
