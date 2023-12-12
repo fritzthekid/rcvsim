@@ -14,16 +14,17 @@ do() ->
 			 io:format("~p: ~p~n",[Acc,B]),
 			 Acc+1
 		 end, 0, P),
-    PP = lists:foldl(fun(X,{J, Acc}) -> [Acc]++[{J,tuple_to_list(X)}] end, {0,[]}, P),
+    PP = element(2,lists:foldl(fun(X,{I,Acc}) -> {I+1, Acc++[{I,tuple_to_list(X)}]} end, {0,[]}, P)),
     {ok, [Data]} = file:consult(ROOT ++ "/data/" ++ maps:get(dataname,Config)),
     io:format("Data:~n",[]),
     lists:foldl(fun(B,Acc) ->
 			 io:format("~p: ~p~n",[Acc,B]),
 			 Acc+1
 		end, 0, Data),
-    NumReg = maps:get(register,Config),
-    InitialRegs = lists:foldr(fun(_,Acc) -> [0] ++ Acc end, [], lists:seq(1,NumReg)),
+    NumReg = maps:get(registers,Config),
+    InitialRegs = lists:foldl(fun(X,Acc) -> Acc++[{X,0}] end, [], lists:seq(1,NumReg)),
     PIDRegs = spawn(rvscorehw, registers, [InitialRegs]),
+    %io:format("rsvmain: ~p, program, ~p~n",[0,PP]),
     PIDCtrl = spawn(rvscorehw, control, [PIDRegs, PP, Data, 0]),
     PIDL = [PIDRegs,PIDCtrl],
     %%lists:foldl(fun({OP}

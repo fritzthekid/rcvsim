@@ -2,7 +2,16 @@
 -compile(export_all).
 
 control(PIDRegs, Program, Data, PC) ->
-    do_operation(self(), PIDRegs, maps:fetch(PC,Program)),
+    io:format("control: ~p~n",[PC]),
+    Ret = maps:find(PC,maps:from_list(Program)),
+    if 
+	(Ret =:=error) ->
+	    do_operation(self(), PIDRegs, {nop});
+	true ->
+	    {ok,Inst} = Ret,
+	    do_operation(self(), PIDRegs, Inst)
+    end,
+
     receive
 	kill ->
 	    io:format("control killed~n",[]),
@@ -17,18 +26,26 @@ control(PIDRegs, Program, Data, PC) ->
     end,
     ok.
 
-wait_a_sec(PID, Delay, msg) ->
-    timer:sleep(Delay),
-    PID ! msg.
+wait_for_reg(PID, Delay, val) ->
+    Timeout = 10,
+    receive
+	{ ok, Val } ->
+	    PID ! Val
+    after
+	Timeout ->
+	    io:format("wait for reg ends with timeout~",[])
+    end.
 
 do_operation(PIDCtl, PIDRegs, Op) ->
-    ThisPID = self(),
-    spawn(fun wait_a_sec/3, [ThisPID,10,ok]),
+    % spawn(fun wait_a_sec/3, [PIDCtl,10,ok]),
+    timer:sleep(10),
+    PIDCtl ! ok,
     ok.
 
 registers() ->
     R = lists:foldl(fun(A,Acc) -> [{A,0}]++Acc end, [], lists:seq(1,32)),
-    registers(maps:from_list(R)).
+    io:format("registers/0: ~p~n",[length(R)]),
+    registers(R).
 registers(Registers) ->
     if 
 	length(Registers) =/= 32 ->
