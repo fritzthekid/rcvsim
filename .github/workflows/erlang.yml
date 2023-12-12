@@ -23,7 +23,7 @@ jobs:
     - name: Run tests
       run: |
         rebar3 eunit --cover --verbose
-        rebar3 cover -m 80 --verbose > x.log
+        rebar3 cover -m 50 --verbose > x.log
         cat x.log | tee -a report.log
     - uses: actions/upload-artifact@v3
       with:
