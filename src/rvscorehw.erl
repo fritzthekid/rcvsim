@@ -1,7 +1,7 @@
 -module(rvscorehw).
 -compile(export_all).
 
-control(PIDRgegs, Program, Data, PC) ->
+control(PIDRegs, Program, Data, PC) ->
     do_operation(self(), PIDRegs, maps:fetch(PC,Program)),
     receive
 	kill ->
@@ -17,8 +17,13 @@ control(PIDRgegs, Program, Data, PC) ->
     end,
     ok.
 
+wait_a_sec(PID, Delay, msg) ->
+    timer:sleep(Delay),
+    PID ! msg.
+
 do_operation(PIDCtl, PIDRegs, Op) ->
-    spawn(fun(PIDCtl)->timer.sleep(10), PIDCtl!ok end, [])
+    ThisPID = self(),
+    spawn(fun wait_a_sec/3, [ThisPID,10,ok]),
     ok.
 
 registers() ->
@@ -43,7 +48,7 @@ registers(Registers) ->
 							   [{K,V}]++Acc 
 						   end 
 				   end, [], RMap),
-		    PID ! Ok,
+		    PID ! ok,
 		    registers(RR)
 	    end
     end.
