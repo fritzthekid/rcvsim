@@ -24,6 +24,15 @@ control(PIDRegs, Program, Data, PC) ->
 		    control(PIDRegs,Program,Data,PC+1)
 	    end
     end,
+    PIDRegs ! {self(), dump},
+    %TimeOutDump = 1000, 
+    receive
+	{ok,Registers} ->
+	    dump(Registers)
+    %after
+	    % TimeOutDump ->
+	    % io:format("Dump Timeout~n",[])
+    end,
     rvsmain:kill([PIDRegs]),
     ok.
 
@@ -46,19 +55,26 @@ do_operation(PIDCtl, PIDRegs, Op) ->
 	"lw" ->
 	    io:format("Op: is lw~n",[]);
 	"slli" ->
-	    io:format("Op: is slli~n",[]);
+	    io:format("~nOp: is slli~n",[]),
+	    {DA,[S,E]} = {hd(lists:sublist(Op,3,1)),get_arguments(PIDRegs,Op,[2,4])},
+	    io:format("~nstore: ~p pow(2,~p) = ~p->~p~n~n",[S,E,S*math:pow(2,E),DA]),
+	    save_to_register(PIDRegs, DA, round(S * math:pow(2,E)));
 	"add" ->
 	    io:format("Op: is add~n",[]),
-	    {D,[S,O]} = {hd(lists:sublist(Op,3,1)),get_arguments(PIDRegs,Op,[2,4])},
-	    save_to_register(PIDRegs, D, S + O);
+	    {DA,[S,O]} = {hd(lists:sublist(Op,3,1)),get_arguments(PIDRegs,Op,[2,4])},
+	    save_to_register(PIDRegs, DA, S + O);
 	"sw" ->
 	    io:format("Op: is sw~n",[]);
 	"addi" ->
 	    io:format("Op: is addi~n",[]),
-	    {D,[S,O]} = {hd(lists:sublist(Op,3,1)),get_arguments(PIDRegs,Op,[2,4])},
-	    save_to_register(PIDRegs, D, S + O);
+	    {DA,[S,O]} = {hd(lists:sublist(Op,3,1)),get_arguments(PIDRegs,Op,[2,4])},
+	    save_to_register(PIDRegs, DA, S + O);
 	"mv" ->
 	    io:format("Op: is mv~n",[]);
+	"store" ->  %% psydo instruction to store value to register
+	    io:format("Op: is store~n",[]),
+	    {DA,[O]} = {hd(lists:sublist(Op,2,1)),get_arguments(PIDRegs,Op,[3])},
+	    save_to_register(PIDRegs, DA, O);
 	_Else ->
 	    io:format("Op: is unkown ~p~n",[_Else])
     end,
@@ -67,46 +83,67 @@ do_operation(PIDCtl, PIDRegs, Op) ->
     ok.
 
 get_arguments(PIDRegs,Op,L) ->
-    io:format("get_arguments: Op ~p, L ~p~n",[Op,L]),
-    LL = lists:foldl(fun(X,Acc) -> lists:sublist(Op,X,1)++Acc end, [], L),
-    io:format("get_arguments: LL ~p~n",[LL]),
+    % io:format("get_arguments: Op ~p, L ~p~n",[Op,L]),
+    LL = lists:foldl(fun(X,Acc) -> Acc++lists:sublist(Op,X,1) end, [], L),
+    % io:format("get_arguments: LL ~p~n",[LL]),
     lists:foldl(fun(A,Acc) ->
 			if
 			    is_number(A) ->
-				io:format("get_arguments: is_number ~p~n",[A]),
+				% io:format("get_arguments: is_number ~p~n",[A]),
 				Acc++[A];
 			    is_list(A) ->
-				io:format("get_arguments: is_list ~p~n",[A]),
+				% io:format("get_arguments: is_list ~p~n",[A]),
+				TimeOutLoad=1000,
 				PIDRegs ! {self(),load,A},
 				receive
 				    {ok,Val} ->
 					Acc++[Val];
 				    _ ->
 					Acc++[error]
+				after
+				    TimeOutLoad ->
+					io:format("TimeOutLoad~n",[])
 				end
 			end
 		end, [],LL).
 
-save_to_register(_PIDRegs, _D, _Val) ->
-    ok.
+save_to_register(PIDRegs, DA, Val) ->
+    PIDRegs ! {self(), store, DA, Val},
+    TimeOutSave = 1000,
+    receive
+	ok ->
+	    RetVal = ok
+    after
+	TimeOutSave ->
+	    io:format("TimeOutSave~n"),
+	    RetVal = error
+    end,
+    RetVal.
+
+dump(Registers) ->
+    io:format("DumpRegisters: ~p~n",[Registers]).
 
 %% registers() ->
 %%     R = lists:foldl(fun(A,Acc) -> [{A,0}]++Acc end, [], lists:seq(1,32)),
 %%     io:format("registers/0: ~p~n",[length(R)]),
 %%     registers(R).
 registers(Registers) ->
-    io:format("registers started~n",[]),
+    %io:format("registers started~n",[]),
     TimeOut = 1000,
     RMap = maps:from_list(Registers),
     receive
 	kill ->
 	    io:format("registers killed~n",[]),
 	    ok;
+	{ PID, dump } ->
+	    PID ! {ok,Registers},
+	    registers(Registers);
 	{ PID, load, Address } ->
 	    io:format("registers load: ~p~n",[Address]),
 	    PID ! {ok,maps:get(Address,RMap)},
 	    registers(Registers);
 	{ PID, store, Address, Value } ->
+	    io:format("registers store: ~p: ~p~n",[Address,Value]),
 	    RR = maps:fold(fun(K,V,Acc) -> if K =:= Address -> 
 						   [{K,Value}]++Acc;
 					      true -> 
