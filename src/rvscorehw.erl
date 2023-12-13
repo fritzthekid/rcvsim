@@ -1,15 +1,14 @@
 -module(rvscorehw).
 -compile(export_all).
 
-control(PIDRegs, Program, Data, PC) ->
-    io:format("control: ~p~n",[PC]),
+control(PIDRegs, Program, OpTab, Data, PC) ->
     Ret = maps:find(PC,maps:from_list(Program)),
-    if 
-	(Ret =:=error) ->
-	    do_operation(self(), PIDRegs, ["nop"]);
+    if
+	(Ret =:= error) ->
+	    do_operation(PIDRegs, OpTab, ["nop"]);
 	true ->
 	    {ok,Inst} = Ret,
-	    do_operation(self(), PIDRegs, Inst)
+	    do_operation(PIDRegs, OpTab, Inst)
     end,
 
     receive
@@ -21,7 +20,7 @@ control(PIDRegs, Program, Data, PC) ->
 		PC >= length(Program) ->
 		    ok;
 		true ->
-		    control(PIDRegs,Program,Data,PC+1)
+		    control(PIDRegs,Program,OpTab,Data,PC+1)
 	    end
     end,
     PIDRegs ! {self(), dump},
@@ -46,41 +45,58 @@ control(PIDRegs, Program, Data, PC) ->
 %% 	    io:format("wait for reg ends with timeout~",[])
 %%     end.
 
-do_operation(PIDCtl, PIDRegs, Op) ->
-    % spawn(fun wait_a_sec/3, [PIDCtl,10,ok]),
-    io:format("do_operation: ~p~n",[Op]),
-    case hd(Op) of
-	"mul" ->
-	    io:format("Op: is mul~n",[]);
-	"lw" ->
-	    io:format("Op: is lw~n",[]);
-	"slli" ->
-	    io:format("~nOp: is slli~n",[]),
-	    {DA,[S,E]} = {hd(lists:sublist(Op,3,1)),get_arguments(PIDRegs,Op,[2,4])},
-	    io:format("~nstore: ~p pow(2,~p) = ~p->~p~n~n",[S,E,S*math:pow(2,E),DA]),
-	    save_to_register(PIDRegs, DA, round(S * math:pow(2,E)));
-	"add" ->
-	    io:format("Op: is add~n",[]),
-	    {DA,[S,O]} = {hd(lists:sublist(Op,3,1)),get_arguments(PIDRegs,Op,[2,4])},
-	    save_to_register(PIDRegs, DA, S + O);
-	"sw" ->
-	    io:format("Op: is sw~n",[]);
-	"addi" ->
-	    io:format("Op: is addi~n",[]),
-	    {DA,[S,O]} = {hd(lists:sublist(Op,3,1)),get_arguments(PIDRegs,Op,[2,4])},
-	    save_to_register(PIDRegs, DA, S + O);
-	"mv" ->
-	    io:format("Op: is mv~n",[]);
-	"store" ->  %% psydo instruction to store value to register
-	    io:format("Op: is store~n",[]),
-	    {DA,[O]} = {hd(lists:sublist(Op,2,1)),get_arguments(PIDRegs,Op,[3])},
-	    save_to_register(PIDRegs, DA, O);
-	_Else ->
-	    io:format("Op: is unkown ~p~n",[_Else])
-    end,
-    timer:sleep(10),
-    PIDCtl ! ok,
-    ok.
+do_operation(PIDRegs, OpTab, Op) ->
+    IsMem = lists:member(hd(Op),dict:fetch_keys(OpTab)),
+    if 
+	IsMem ->
+	    io:format("Op: ~p~n",[Op]),
+	    do_op(PIDRegs,Op,OpTab),
+	    timer:sleep(10),
+	    self() ! ok;
+	true ->
+	    io:format("!!! n.s.y: ",[]),
+	    io:format("Op: ~p~n",[Op]),
+	    case hd(Op) of
+		"lw" ->
+		    io:format("Op: is lw~n",[]);
+		"sw" ->
+		    io:format("Op: is sw~n",[]);
+		"mv" ->
+		    io:format("Op: is mv~n",[]);
+		_Else ->
+		    io:format("Op: is unkown ~p~n",[_Else])
+	    end,
+	    timer:sleep(10),
+	    self() ! ok
+    end.
+    %% ok.
+
+do_op(PIDRegs,Op,OpTab) ->
+    [DR,AL,Pat] = dict:fetch(hd(Op),OpTab),
+    {DA,Args} = {hd(lists:sublist(Op,DR,1)),get_arguments(PIDRegs,Op,AL)},
+    save_to_register(PIDRegs, DA, do_pat(Pat,Args)).
+
+do_pat(Pat,Args) ->
+    if 
+	(length(Pat) =:= 1) -> 
+	    hd(Args);
+	true ->
+	    case lists:last(Pat) of
+		add ->
+		    hd(Args)+get(get(2,Pat),Args);
+		mul ->
+		    hd(Args)*get(get(2,Pat),Args);
+		asbsl ->
+		    hd(Args) bsl get(get(2,Pat),Args);
+		addi ->
+		    hd(Args)+get(get(2,Pat),Args);
+		true ->
+		    error
+	    end
+    end.
+
+get(N,L) ->
+    hd(lists:sublist(L,N,1)).
 
 get_arguments(PIDRegs,Op,L) ->
     % io:format("get_arguments: Op ~p, L ~p~n",[Op,L]),
