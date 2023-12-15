@@ -14,4 +14,16 @@ lex (flex) + yacc (bison) rules for VHDL:
 
 or [VHD2VL v3.0](https://github.com/ldoolitt/vhd2vl)
 
-## 
+## Stackoverflow
+
+[How to do Erlang pattern matching using regular expressions?](https://stackoverflow.com/questions/1660655/how-to-do-erlang-pattern-matching-using-regular-expressions)
+
+[Timeout](https://stackoverflow.com/questions/44629823/how-to-apply-timeout-on-method-in-erlang#44631001)
+
+Here the best thing is how he/she spawns a local function.
+
+## [Erlang Kernel Referenz Manual](https://www.erlang.org/doc/apps/kernel/users_guide)
+
+[logger](https://www.erlang.org/doc/man/logger.html)
+
+[](https://stackoverflow.com/questions/59297066/how-to-log-to-a-file-from-the-erlang-shell)

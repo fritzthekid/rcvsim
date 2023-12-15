@@ -62,11 +62,13 @@ do_operation(PIDM, OpTab, Op) ->
     %% ok.
 
 do_op(PIDM,Op,OpTab) ->
+    logger:info("Op: ~p",[Op]),
     [DR,AL,Pat] = dict:fetch(hd(Op),OpTab),
     {DA,Args} = {hd(lists:sublist(Op,DR,1)),get_arguments(PIDM,Op,AL)},
     save_to_register(PIDM, DA, do_pat(Pat,Args)).
 
 do_pat(Pat,Args) ->
+    logger:info("Pat: ~p, Args: ~p",[Pat,Args]),
     if 
 	(length(Pat) =:= 1) -> 
 	    hd(Args);
