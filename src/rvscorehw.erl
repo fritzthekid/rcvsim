@@ -1,14 +1,14 @@
 -module(rvscorehw).
 -compile(export_all).
 
-control(PIDRegs, Program, OpTab, Data, PC) ->
+control(PIDM, Program, OpTab, Data, PC) ->
     Ret = maps:find(PC,maps:from_list(Program)),
     if
 	(Ret =:= error) ->
-	    do_operation(PIDRegs, OpTab, ["nop"]);
+	    do_operation(PIDM, OpTab, ["nop"]);
 	true ->
 	    {ok,Inst} = Ret,
-	    do_operation(PIDRegs, OpTab, Inst)
+	    do_operation(PIDM, OpTab, Inst)
     end,
 
     receive
@@ -20,61 +20,51 @@ control(PIDRegs, Program, OpTab, Data, PC) ->
 		PC >= length(Program) ->
 		    ok;
 		true ->
-		    control(PIDRegs,Program,OpTab,Data,PC+1)
+		    control(PIDM,Program,OpTab,Data,PC+1)
 	    end
     end,
-    PIDRegs ! {self(), dump},
+    maps:get(registers,PIDM) ! {self(), dump},
     %TimeOutDump = 1000, 
     receive
-	{ok,Registers} ->
-	    dump(Registers)
+	{ok,_Registers} ->
+	    ok %dump(_Registers)
     %after
 	    % TimeOutDump ->
 	    % io:format("Dump Timeout~n",[])
     end,
-    rvsmain:kill([PIDRegs]),
-    ok.
+    rvsmain:kill(maps:fold(fun(_,V,Acc)-> [V]++Acc end,[],maps:remove(main,PIDM))),
+    maps:get(main,PIDM) ! ok.
 
-%% wait_for_reg(PID, Delay, val) ->
-%%     Timeout = 10,
-%%     receive
-%% 	{ ok, Val } ->
-%% 	    PID ! Val
-%%     after
-%% 	Timeout ->
-%% 	    io:format("wait for reg ends with timeout~",[])
-%%     end.
-
-do_operation(PIDRegs, OpTab, Op) ->
+do_operation(PIDM, OpTab, Op) ->
     IsMem = lists:member(hd(Op),dict:fetch_keys(OpTab)),
     if 
 	IsMem ->
-	    io:format("Op: ~p~n",[Op]),
-	    do_op(PIDRegs,Op,OpTab),
+	    %io:format("Op: ~p~n",[Op]),
+	    do_op(PIDM,Op,OpTab),
 	    timer:sleep(10),
 	    self() ! ok;
 	true ->
-	    io:format("!!! n.s.y: ",[]),
-	    io:format("Op: ~p~n",[Op]),
+	    %io:format("!!! n.s.y: ",[]),
+	    %io:format("Op: ~p~n",[Op]),
 	    case hd(Op) of
 		"lw" ->
-		    io:format("Op: is lw~n",[]);
+		    ok; %io:format("Op: is lw~n",[]);
 		"sw" ->
-		    io:format("Op: is sw~n",[]);
+		    ok; %io:format("Op: is sw~n",[]);
 		"mv" ->
-		    io:format("Op: is mv~n",[]);
+		    ok; %io:format("Op: is mv~n",[]);
 		_Else ->
-		    io:format("Op: is unkown ~p~n",[_Else])
+		    ok %io:format("Op: is unkown ~p~n",[_Else])
 	    end,
-	    timer:sleep(10),
+	    %% timer:sleep(10),
 	    self() ! ok
     end.
     %% ok.
 
-do_op(PIDRegs,Op,OpTab) ->
+do_op(PIDM,Op,OpTab) ->
     [DR,AL,Pat] = dict:fetch(hd(Op),OpTab),
-    {DA,Args} = {hd(lists:sublist(Op,DR,1)),get_arguments(PIDRegs,Op,AL)},
-    save_to_register(PIDRegs, DA, do_pat(Pat,Args)).
+    {DA,Args} = {hd(lists:sublist(Op,DR,1)),get_arguments(PIDM,Op,AL)},
+    save_to_register(PIDM, DA, do_pat(Pat,Args)).
 
 do_pat(Pat,Args) ->
     if 
@@ -90,7 +80,7 @@ do_pat(Pat,Args) ->
 		    hd(Args) bsl get(get(2,Pat),Args);
 		addi ->
 		    hd(Args)+get(get(2,Pat),Args);
-		true ->
+		_Default ->
 		    error
 	    end
     end.
@@ -98,10 +88,8 @@ do_pat(Pat,Args) ->
 get(N,L) ->
     hd(lists:sublist(L,N,1)).
 
-get_arguments(PIDRegs,Op,L) ->
-    % io:format("get_arguments: Op ~p, L ~p~n",[Op,L]),
+get_arguments(PIDM,Op,L) ->
     LL = lists:foldl(fun(X,Acc) -> Acc++lists:sublist(Op,X,1) end, [], L),
-    % io:format("get_arguments: LL ~p~n",[LL]),
     lists:foldl(fun(A,Acc) ->
 			if
 			    is_number(A) ->
@@ -109,8 +97,8 @@ get_arguments(PIDRegs,Op,L) ->
 				Acc++[A];
 			    is_list(A) ->
 				% io:format("get_arguments: is_list ~p~n",[A]),
-				TimeOutLoad=1000,
-				PIDRegs ! {self(),load,A},
+				TimeOutLoad=10,
+				maps:get(registers,PIDM) ! {self(),load,A},
 				receive
 				    {ok,Val} ->
 					Acc++[Val];
@@ -118,33 +106,34 @@ get_arguments(PIDRegs,Op,L) ->
 					Acc++[error]
 				after
 				    TimeOutLoad ->
-					io:format("TimeOutLoad~n",[])
+					io:format("TimeOutLoad~n",[]),
+					timeout
 				end
 			end
 		end, [],LL).
 
-save_to_register(PIDRegs, DA, Val) ->
-    PIDRegs ! {self(), store, DA, Val},
-    TimeOutSave = 1000,
+save_to_register(PIDM, DA, Val) ->
+    maps:get(registers,PIDM) ! {self(), store, DA, Val},
+    TimeOutSave = 10,
     receive
 	ok ->
-	    RetVal = ok
+	    ok
     after
 	TimeOutSave ->
 	    io:format("TimeOutSave~n"),
-	    RetVal = error
-    end,
-    RetVal.
+	    timeout
+    end.
 
 dump(Registers) ->
-    io:format("DumpRegisters: ~p~n",[Registers]).
+    io:format("DumpRegisters: ~p~n",[Registers]),
+    Registers.
 
-%% registers() ->
-%%     R = lists:foldl(fun(A,Acc) -> [{A,0}]++Acc end, [], lists:seq(1,32)),
-%%     io:format("registers/0: ~p~n",[length(R)]),
-%%     registers(R).
+registers(init,Size,Filling) ->
+    registers(lists:foldl(fun(X,Acc) -> 
+				  Acc++[{"a"++integer_to_list(X),Filling}] end,
+			  [], lists:seq(1,Size))++[{"sp",0},{"s0",0}]).
+
 registers(Registers) ->
-    %io:format("registers started~n",[]),
     TimeOut = 1000,
     RMap = maps:from_list(Registers),
     receive
@@ -155,11 +144,11 @@ registers(Registers) ->
 	    PID ! {ok,Registers},
 	    registers(Registers);
 	{ PID, load, Address } ->
-	    io:format("registers load: ~p~n",[Address]),
+	    %% io:format("registers load: ~p~n",[Address]),
 	    PID ! {ok,maps:get(Address,RMap)},
 	    registers(Registers);
 	{ PID, store, Address, Value } ->
-	    io:format("registers store: ~p: ~p~n",[Address,Value]),
+	    %% io:format("registers store: ~p: ~p~n",[Address,Value]),
 	    RR = maps:fold(fun(K,V,Acc) -> if K =:= Address -> 
 						   [{K,Value}]++Acc;
 					      true -> 
@@ -170,6 +159,33 @@ registers(Registers) ->
 	    registers(RR)
     after
 	TimeOut ->
-	    io:format("registers timeout~n",[])
+	    io:format("registers timeout~n",[]),
+	    timeout
     end.
 
+-ifdef(REBARTEST).
+-include_lib("eunit/include/eunit.hrl").
+register_timeout_test() ->
+    PID=spawn(rvscorehw,registers,[init,32,0]),
+    timer:sleep(1010),
+    ?assert(is_process_alive(PID)=:=false),
+    ok.
+do_pat_test() ->
+    ?assertEqual(17,do_pat([1],[17])),
+    ?assertEqual(20,do_pat([1,2,addi],[17,3])),
+    ?assert(error=:=rvscorehw:do_pat([1,2,xxx],[17,3])).
+load_timeout_test() ->
+    PID=spawn(fun()->timer:sleep(10) end),
+    ?assertEqual(timeout,get_arguments(maps:from_list([{registers,PID}]),["a1"],[1])).
+save_timeout_test() ->
+    PID=spawn(fun()->timer:sleep(10) end),
+    ?assertEqual(timeout,save_to_register(maps:from_list([{registers,PID}]),"a1",[1])).
+dump_register_test() ->
+    PIDReg = spawn(rvscorehw,registers,[init,32,0]),
+    PIDReg ! {self(),dump},
+    receive
+	{ok,Registers} ->
+	    dump(Registers)
+    end,
+    PIDReg ! kill.
+-endif.

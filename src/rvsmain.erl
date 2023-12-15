@@ -2,13 +2,13 @@
 -compile([export_all]).
 
 kill(PIDL) ->
-    lists:filter(fun(X) -> X ! kill, true end, PIDL).
+    lists:foreach(fun(X) -> X ! kill end, PIDL).
 
 do() ->
+    do("/data/config.config").
+do(Configfilename) ->
     ROOT=".",
-    {ok, [Config]}  = file:consult(ROOT ++ "/data/config.config"),
-    %% io:format("Config: ~w~n",[Config]),
-    %% {ok, [P]} = file:consult(ROOT ++ "/data/" ++ maps:get(programname,Config)),
+    {ok, [Config]}  = file:consult(ROOT ++ Configfilename),
     [_|P] = rvsreadasm:readasm(ROOT ++ "/data/simple-func.s"),
     PP = element(2,lists:foldl(fun(X,{I,Acc}) -> 
 				       {I+1, Acc++[{I,tuple_to_list(X)}]} 
@@ -16,22 +16,21 @@ do() ->
     {ok, [Data]} = file:consult(ROOT ++ "/data/" ++ maps:get(dataname,Config)),
     {ok, [OTL]} = file:consult(ROOT ++ "/src/operation-table.config"),
     OpTab = dict:from_list(OTL),
-    %%io:format("Data:~n",[]),
-    %%lists:foldl(fun(B,Acc) ->
-		%% 	 io:format("~p: ~p~n",[Acc,B]),
-		%% 	 Acc+1
-		%% end, 0, Data),
-    NumReg = maps:get(registers,Config),
-    InitialRegs = lists:foldl(fun(X,Acc) -> 
-				      Acc++[{"a"++integer_to_list(X),0}] end,
-			      [], lists:seq(1,NumReg))++[{"sp",0},{"s0",0}],
-    PIDRegs = spawn(rvscorehw, registers, [InitialRegs]),
-    %io:format("rsvmain: ~p, program, ~p~n",[0,PP]),
-    PIDCtrl = spawn(rvscorehw, control, [PIDRegs, PP, OpTab, Data, 0]),
-    PIDL = [PIDRegs,PIDCtrl],
-    %%lists:foldl(fun({OP}
-    PIDL.
-
+    PIDRegs = spawn(rvscorehw, registers, [init,maps:get(registers,Config),0]),
+    PIDMem =  spawn(rvscorehw, registers, [init,maps:get(memory,Config),0]),
+    PIDM = maps:from_list([{registers,PIDRegs},{memory,PIDMem},{main,self()}]),
+    PIDCtrl = spawn(rvscorehw, control, [PIDM, PP, OpTab, Data, 0]),
+    %%maps:fold(fun(_,V,Acc)->[V]++Acc end,[],PIDM)++[PIDCtrl].
+    TimeOutMain = maps:get(timeout_main,Config),
+    receive
+	ok ->
+	    ok
+    after
+	TimeOutMain ->
+	    timeout
+    end,
+    {maps:put(main,self(),PIDM),PIDCtrl}.
+    
 program_to_strings(Program) ->
     lists:foldl(fun(Op, Acc) -> Acc ++ [op_to_string(Op)] end, [], Program).
 
@@ -50,8 +49,13 @@ op_to_string(Operation) ->
 
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").
-rcvmain_do_test() ->
-    PIDL=do(),
+rvsmain_kill_control_test() ->
+    {_,_} = do(),
     timer:sleep(1000),
-    kill(PIDL).
+    %%kill(PIDCtrl).	
+    ok.
+rvsmain_op_to_string_test() ->
+    Result = op_to_string({"saf",asd,1,digraph:new()}),
+    ?assertEqual(3,tuple_size(Result)),
+    ok.
 -endif.

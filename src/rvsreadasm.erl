@@ -27,8 +27,8 @@ do_line(L) ->
     LLL=lists:foldl(fun(S,Acc)->Acc++string:split(S," ") end,[],LL),
     LLLL=lists:foldl(fun(S,Acc)->Acc++[string:strip(S)] end,[],LLL),
     F = fun(S,Acc) ->
-		{Int,_} = string:to_integer(S), IsNum = is_number(Int),
-		if IsNum -> Acc++[Int];
+		{Int,_} = string:to_integer(S),
+		if is_integer(Int) -> Acc++[Int];
 		   true -> Acc++[S]
 		end
 	end,
