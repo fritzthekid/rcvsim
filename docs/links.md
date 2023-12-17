@@ -22,8 +22,9 @@ or [VHD2VL v3.0](https://github.com/ldoolitt/vhd2vl)
 
 Here the best thing is how he/she spawns a local function.
 
+[how-to-log-to-a-file-from-the-erlang-shell](https://stackoverflow.com/questions/59297066/how-to-log-to-a-file-from-the-erlang-shell)
+
 ## [Erlang Kernel Referenz Manual](https://www.erlang.org/doc/apps/kernel/users_guide)
 
 [logger](https://www.erlang.org/doc/man/logger.html)
 
-[](https://stackoverflow.com/questions/59297066/how-to-log-to-a-file-from-the-erlang-shell)
