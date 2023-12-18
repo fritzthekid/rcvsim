@@ -30,8 +30,17 @@ just_text(Filename) ->
 
 just_globals_and_size(Text) ->
     G=grep_globals(Text),
-    SZ=size_of_globals(Text,"size",G),
-    {G,SZ}.
+    SM=maps:from_list(size_of_globals(Text,G)),
+    TM=maps:from_list(type_of_globals(Text,G)),
+    maps:from_list(lists:foldl(fun(SG,Acc)->
+				       Acc++[{SG,maps:from_list(
+						   [{size,maps:get(SG,SM)},
+						    {type,maps:get(SG,TM)}]
+						  )
+					     }
+					    ] 
+			       end, [], G)).
+
 print_text(Text) ->
     lists:foreach(fun({I,L}) -> io:format("~p: ~s~n",[I,L]) end, lists:zip(lists:seq(1,length(Text)),Text)).
 
@@ -109,3 +118,14 @@ type_of_globals(OAcc,[G|T],Text) ->
 		       end, OAcc,Text),
     type_of_globals(NAcc,T,Text).
 
+-ifdef(REBARTEST).
+-include_lib("eunit/include/eunit.hrl").
+globals_test() ->
+    G = just_globals_and_size(just_text("data/func-with-globals.s")),
+    ?assertEqual("4000",maps:get(size,maps:get("buffer",G))),
+    ok.
+list_text_test() ->
+    Text = just_text("data/func-with-globals.s"),
+    ?assertEqual(19,length(list_text(Text,3,22))),
+    print_text(Text).
+-endif.
