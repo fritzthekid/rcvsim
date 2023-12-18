@@ -24,6 +24,8 @@ Here the best thing is how he/she spawns a local function.
 
 [how-to-log-to-a-file-from-the-erlang-shell](https://stackoverflow.com/questions/59297066/how-to-log-to-a-file-from-the-erlang-shell)
 
+[catch {ok,Content}](https://stackoverflow.com/questions/27833253/can-not-catch-error-clause)
+
 ## [Erlang Kernel Referenz Manual](https://www.erlang.org/doc/apps/kernel/users_guide)
 
 [logger](https://www.erlang.org/doc/man/logger.html)

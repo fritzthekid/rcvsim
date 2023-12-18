@@ -2,11 +2,10 @@
 -compile(export_all).
 
 readasm(Filename) ->
-    {ok, Bin} = file:read_file(Filename),
-    [_|Text] = string:split(binary:bin_to_list(Bin),"\n",all),
-    _Globals = grep_globals(Text),
+    Text = read_text_file_as_list(Filename),
+    _Globals = globals_maps(Text,"data/global-address-list.config"),
     TT = lists:foldl(fun(L,Acc) -> Acc++string:strip(string:replace(L,"\t"," ")) end,[],Text),
-    NT = lists:foldl(fun(L,Acc) -> Len=length(string:strip(L)), 
+    lists:foldl(fun(L,Acc) -> Len=length(string:strip(L)), 
 				   if Len > 0 -> 
 					   Is = (hd(string:strip(L)) =/= 46),
 					   if
@@ -17,30 +16,45 @@ readasm(Filename) ->
 					   end;
 				      true -> Acc
 				   end
-		     end, [],TT),
-    %% lists:foreach(fun(Line) -> 
-    %% 			  io:format("~p~n",[Line])
-    %% 		  end ,NT),
-    NT.
+		     end, [],TT).
 
-just_text(Filename) ->
+read_text_file_as_list(Filename) ->
     {ok, Bin} = file:read_file(Filename),
     [_|Text] = string:split(binary:bin_to_list(Bin),"\n",all),
     Text.
 
-just_globals_and_size(Text) ->
+globals_maps(Text,GlobalsFilename) ->
     G=grep_globals(Text),
     SM=maps:from_list(size_of_globals(Text,G)),
     TM=maps:from_list(type_of_globals(Text,G)),
-    maps:from_list(lists:foldl(fun(SG,Acc)->
+    GM=maps:from_list(lists:foldl(fun(SG,Acc)->
 				       Acc++[{SG,maps:from_list(
 						   [{size,maps:get(SG,SM)},
 						    {type,maps:get(SG,TM)}]
 						  )
 					     }
 					    ] 
-			       end, [], G)).
+				  end, [], G)),
+    case file:consult(GlobalsFilename) of
+	{ok,[L]} ->
+	    append_key_values(GM,L);
+	{error,Reason} ->
+	    logger:error("reading file: ~p",[Reason]),
+	    GM
+end.
 
+append_key_values(M,[])-> M;
+append_key_values(M,[{G,K,V}|T]) ->
+    append_key_values(append_key_values(M,G,K,V),T).
+
+append_key_values(M1,G,K,V) ->
+    case maps:find(G,M1) of
+	{ok,_} ->
+	    maps:update(G,maps:merge(maps:get(G,M1),#{K=>V}),M1);
+	error ->
+	    maps:put(G,#{K => V},M1)
+    end.
+	
 print_text(Text) ->
     lists:foreach(fun({I,L}) -> io:format("~p: ~s~n",[I,L]) end, lists:zip(lists:seq(1,length(Text)),Text)).
 
@@ -72,17 +86,11 @@ grep_globals(Text) ->
 			    nomatch ->
 				Acc;
 			    {match,[{Left,Len}]} ->
-				logger:info("{Left:~p,Len:~p}, match: ~s",[Left,Len,Line]),
 				Acc ++ [string:strip(lists:sublist(Line,Left+Len+2,80))];
 			    _Default ->
-				logger:info("_Default",[Line]),
 				Acc ++ [error]
 			end
 		    end, [], Text).
-    
-    %GS = size_of_globals(Text,G),
-    %{G,GS}.
-
 
 size_of_globals(Text,Globals) ->
     size_of_globals([],Globals,Text).
@@ -93,7 +101,6 @@ size_of_globals(OAcc,[G|T],Text) ->
 			    nomatch ->
 				Acc;
 			    {match,[{Left,Len}]} ->
-				logger:info("~p,~p: ~s",[Left,Len,Line]),
 				Acc ++ [{G,string:strip(lists:sublist(Line,Left+Len+1,80))}];
 			    _Default ->
 				Acc ++ [error]
@@ -110,7 +117,6 @@ type_of_globals(OAcc,[G|T],Text) ->
 			    nomatch ->
 				Acc;
 			    {match,[{Left,Len}]} ->
-				logger:info("~p,~p: ~s",[Left,Len,Line]),
 				Acc ++ [{G,string:strip(lists:sublist(Line,Left+Len+1,80))}];
 			    _Default ->
 				Acc ++ [error]
@@ -121,11 +127,17 @@ type_of_globals(OAcc,[G|T],Text) ->
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").
 globals_test() ->
-    G = just_globals_and_size(just_text("data/func-with-globals.s")),
+    G = globals_maps(read_text_file_as_list("data/func-with-globals.s"),"test/data/no-globals.config"),
     ?assertEqual("4000",maps:get(size,maps:get("buffer",G))),
     ok.
 list_text_test() ->
-    Text = just_text("data/func-with-globals.s"),
+    Text = read_text_file_as_list("data/func-with-globals.s"),
     ?assertEqual(19,length(list_text(Text,3,22))),
     print_text(Text).
+globals_maps_test() ->
+    GM = globals_maps(read_text_file_as_list("data/func-with-globals.s"),
+		     "test/data/no-globals.config"),
+    GX = globals_maps(read_text_file_as_list("data/func-with-globals.s"),
+		      "test/x/somefile"),
+    ?assert(GM==GX).
 -endif.
