@@ -1,0 +1,37 @@
+name: Erlang CI
+
+on: [push, pull_request, workflow_dispatch]
+
+permissions:
+  contents: read
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    container:
+      image: erlang:22.0.7
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Compile
+      run: 
+        rebar3 compile > report.log
+        cat report.log
+    - name: Run tests
+      run: |
+        rebar3 eunit --cover --verbose
+        rebar3 cover -m 50 --verbose > x.log
+        cat x.log | tee -a report.log
+        rm -rf results && mkdir results
+        # cp log/rvs.log results/
+        cp report.log results/
+    - uses: actions/upload-artifact@v3
+      with:
+        name: report
+        path: results
+
+
+
