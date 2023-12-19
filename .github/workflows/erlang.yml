@@ -22,8 +22,7 @@ jobs:
         cat report.log
     - name: Run tests
       run: |
-        rebar3 eunit --sys_config config/sys.config
- --cover --verbose
+        rebar3 eunit --sys_config config/sys.config --cover --verbose
         rebar3 cover -m 50 --verbose > x.log
         cat x.log | tee -a report.log
         rm -rf results && mkdir results
@@ -33,6 +32,6 @@ jobs:
       with:
         name: report
         path: results
-        
+
 
 
