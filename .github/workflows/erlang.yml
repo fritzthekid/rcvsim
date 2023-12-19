@@ -22,12 +22,17 @@ jobs:
         cat report.log
     - name: Run tests
       run: |
-        rebar3 eunit --cover --verbose
+        rebar3 eunit --sys_config config/sys.config
+ --cover --verbose
         rebar3 cover -m 50 --verbose > x.log
         cat x.log | tee -a report.log
+        rm -rf results && mkdir results
+        cp log/rvs.log results/
+        cp report.log results/
     - uses: actions/upload-artifact@v3
       with:
         name: report
-        path: report.log
+        path: results
+        
 
 

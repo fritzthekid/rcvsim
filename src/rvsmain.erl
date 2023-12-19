@@ -9,7 +9,7 @@ do() ->
 do(Configfilename) ->
     ROOT=".",
     {ok, [Config]}  = file:consult(ROOT ++ Configfilename),
-    [_|P] = rvsreadasm:readasm(ROOT ++ "/data/simple-func.s"),
+    {[_|P],Globals} = rvsreadasm:readasm(ROOT ++ "/data/simple-func.s"),
     PP = element(2,lists:foldl(fun(X,{I,Acc}) -> 
 				       {I+1, Acc++[{I,tuple_to_list(X)}]} 
 			       end, {0,[]}, program_to_strings(P))),
@@ -17,9 +17,9 @@ do(Configfilename) ->
     {ok, [OTL]} = file:consult(ROOT ++ "/src/operation-table.config"),
     OpTab = dict:from_list(OTL),
     PIDRegs = spawn(rvscorehw, registers, [init,maps:get(registers,Config),0]),
-    PIDMem =  spawn(rvscorehw, registers, [init,maps:get(memory,Config),0]),
+    PIDMem =  spawn(rvscorehw, memory, [init,maps:get(memory,Config),0]),
     PIDM = maps:from_list([{registers,PIDRegs},{memory,PIDMem},{main,self()}]),
-    PIDCtrl = spawn(rvscorehw, control, [PIDM, PP, OpTab, Data, 0]),
+    PIDCtrl = spawn(rvscorehw, control, [PIDM, PP, OpTab, Globals, Data, 0]),
     %%maps:fold(fun(_,V,Acc)->[V]++Acc end,[],PIDM)++[PIDCtrl].
     TimeOutMain = maps:get(timeout_main,Config),
     receive

@@ -3,9 +3,9 @@
 
 readasm(Filename) ->
     Text = read_text_file_as_list(Filename),
-    _Globals = globals_maps(Text,"data/global-address-list.config"),
+    Globals = globals_maps(Text,"data/global-address-list.config"),
     TT = lists:foldl(fun(L,Acc) -> Acc++string:strip(string:replace(L,"\t"," ")) end,[],Text),
-    lists:foldl(fun(L,Acc) -> Len=length(string:strip(L)), 
+    { lists:foldl(fun(L,Acc) -> Len=length(string:strip(L)), 
 				   if Len > 0 -> 
 					   Is = (hd(string:strip(L)) =/= 46),
 					   if
@@ -16,7 +16,7 @@ readasm(Filename) ->
 					   end;
 				      true -> Acc
 				   end
-		     end, [],TT).
+		     end, [],TT), Globals }.
 
 read_text_file_as_list(Filename) ->
     {ok, Bin} = file:read_file(Filename),

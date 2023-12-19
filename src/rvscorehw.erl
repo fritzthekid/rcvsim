@@ -1,14 +1,14 @@
 -module(rvscorehw).
 -compile(export_all).
 
-control(PIDM, Program, OpTab, Data, PC) ->
+control(PIDM, Program, OpTab, Globals, Data, PC) ->
     Ret = maps:find(PC,maps:from_list(Program)),
     if
 	(Ret =:= error) ->
-	    do_operation(PIDM, OpTab, ["nop"]);
+	    do_operation(PIDM, OpTab, ["nop"], Globals);
 	true ->
 	    {ok,Inst} = Ret,
-	    do_operation(PIDM, OpTab, Inst)
+	    do_operation(PIDM, OpTab, Inst, Globals)
     end,
 
     receive
@@ -20,7 +20,7 @@ control(PIDM, Program, OpTab, Data, PC) ->
 		PC >= length(Program) ->
 		    ok;
 		true ->
-		    control(PIDM,Program,OpTab,Data,PC+1)
+		    control(PIDM,Program,OpTab,Globals,Data,PC+1)
 	    end
     end,
     maps:get(registers,PIDM) ! {self(), dump},
@@ -35,12 +35,12 @@ control(PIDM, Program, OpTab, Data, PC) ->
     rvsmain:kill(maps:fold(fun(_,V,Acc)-> [V]++Acc end,[],maps:remove(main,PIDM))),
     maps:get(main,PIDM) ! ok.
 
-do_operation(PIDM, OpTab, Op) ->
+do_operation(PIDM, OpTab, Op, Globals) ->
     IsMem = lists:member(hd(Op),dict:fetch_keys(OpTab)),
     if 
 	IsMem ->
 	    %io:format("Op: ~p~n",[Op]),
-	    do_op(PIDM,Op,OpTab),
+	    do_op(PIDM,Op,OpTab,Globals),
 	    timer:sleep(10),
 	    self() ! ok;
 	true ->
@@ -61,11 +61,11 @@ do_operation(PIDM, OpTab, Op) ->
     end.
     %% ok.
 
-do_op(PIDM,Op,OpTab) ->
+do_op(PIDM,Op,OpTab,Globals) ->
     logger:info("Op: ~p",[Op]),
     [DR,AL,Pat] = dict:fetch(hd(Op),OpTab),
-    {DA,Args} = {hd(lists:sublist(Op,DR,1)),get_arguments(PIDM,Op,AL)},
-    save_to_register(PIDM, DA, do_pat(Pat,Args)).
+    {DA,Args} = {hd(lists:sublist(Op,DR,1)),get_arguments(PIDM,Op,AL,Globals)},
+    save_to_register(PIDM, DA, do_pat(Pat,Args),Globals).
 
 do_pat(Pat,Args) ->
     logger:info("Pat: ~p, Args: ~p",[Pat,Args]),
@@ -90,7 +90,7 @@ do_pat(Pat,Args) ->
 get(N,L) ->
     hd(lists:sublist(L,N,1)).
 
-get_arguments(PIDM,Op,L) ->
+get_arguments(PIDM,Op,L,Globals) ->
     LL = lists:foldl(fun(X,Acc) -> Acc++lists:sublist(Op,X,1) end, [], L),
     lists:foldl(fun(A,Acc) ->
 			if
@@ -114,7 +114,7 @@ get_arguments(PIDM,Op,L) ->
 			end
 		end, [],LL).
 
-save_to_register(PIDM, DA, Val) ->
+save_to_register(PIDM, DA, Val,Globals) ->
     maps:get(registers,PIDM) ! {self(), store, DA, Val},
     TimeOutSave = 10,
     receive
@@ -146,22 +146,43 @@ registers(Registers) ->
 	    PID ! {ok,Registers},
 	    registers(Registers);
 	{ PID, load, Address } ->
-	    %% io:format("registers load: ~p~n",[Address]),
+	    %% logger:info("registers load: ~p~n",[Address]),
 	    PID ! {ok,maps:get(Address,RMap)},
 	    registers(Registers);
 	{ PID, store, Address, Value } ->
-	    %% io:format("registers store: ~p: ~p~n",[Address,Value]),
-	    RR = maps:fold(fun(K,V,Acc) -> if K =:= Address -> 
-						   [{K,Value}]++Acc;
-					      true -> 
-						   [{K,V}]++Acc 
-					   end 
-			   end, [], RMap),
+	    %% logger:info("registers store: ~p: ~p",[Address,Value]),
+	    RR=maps:to_list(maps:put(Address,Value,RMap)),
 	    PID ! ok,
 	    registers(RR)
     after
 	TimeOut ->
 	    io:format("registers timeout~n",[]),
+	    timeout
+    end.
+
+memory(init,Size,Filling) ->
+    memory(array:new(Size,{default,Filling})).
+
+memory(Memory) ->
+    TimeOut = 1000,
+    receive
+	kill ->
+	    io:format("memory killed~n",[]),
+	    ok;
+	{ PID, dump } ->
+	    PID ! {ok,Memory},
+	    memory(Memory);
+	{ PID, load, Address } ->
+	    io:format("memory load: ~p~n",[Address]),
+	    PID ! {array:get(Address,Memory)},
+	    memory(Memory);
+	{ PID, store, Address, Value } ->
+	    io:format("memory store: ~p: ~p~n",[Address,Value]),
+	    PID ! ok,
+	    memory(array:set(Address,Value,Memory))
+    after
+	TimeOut ->
+	    io:format("memory timeout~n",[]),
 	    timeout
     end.
 
@@ -178,10 +199,10 @@ do_pat_test() ->
     ?assert(error=:=rvscorehw:do_pat([1,2,xxx],[17,3])).
 load_timeout_test() ->
     PID=spawn(fun()->timer:sleep(10) end),
-    ?assertEqual(timeout,get_arguments(maps:from_list([{registers,PID}]),["a1"],[1])).
+    ?assertEqual(timeout,get_arguments(maps:from_list([{registers,PID}]),["a1"],[1],#{})).
 save_timeout_test() ->
     PID=spawn(fun()->timer:sleep(10) end),
-    ?assertEqual(timeout,save_to_register(maps:from_list([{registers,PID}]),"a1",[1])).
+    ?assertEqual(timeout,save_to_register(maps:from_list([{registers,PID}]),"a1",[1],#{})).
 dump_register_test() ->
     PIDReg = spawn(rvscorehw,registers,[init,32,0]),
     PIDReg ! {self(),dump},
@@ -190,4 +211,12 @@ dump_register_test() ->
 	    dump(Registers)
     end,
     PIDReg ! kill.
+%% dump_memory_test() ->
+%%     PIDReg = spawn(rvscorehw,registers,[init,32,0]),
+%%     PIDReg ! {self(),dump},
+%%     receive
+%% 	{ok,Memory} ->
+%% 	    dump(Memory)
+%%     end,
+%%     PIDReg ! kill.
 -endif.
