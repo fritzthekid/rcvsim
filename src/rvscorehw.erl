@@ -160,32 +160,6 @@ registers(Registers) ->
 	    timeout
     end.
 
-memory(init,Size,Filling) ->
-    memory(array:new(Size,{default,Filling})).
-
-memory(Memory) ->
-    TimeOut = 1000,
-    receive
-	kill ->
-	    io:format("memory killed~n",[]),
-	    ok;
-	{ PID, dump } ->
-	    PID ! {ok,Memory},
-	    memory(Memory);
-	{ PID, load, Address } ->
-	    io:format("memory load: ~p~n",[Address]),
-	    PID ! {array:get(Address,Memory)},
-	    memory(Memory);
-	{ PID, store, Address, Value } ->
-	    io:format("memory store: ~p: ~p~n",[Address,Value]),
-	    PID ! ok,
-	    memory(array:set(Address,Value,Memory))
-    after
-	TimeOut ->
-	    io:format("memory timeout~n",[]),
-	    timeout
-    end.
-
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").
 register_timeout_test() ->
@@ -211,12 +185,4 @@ dump_register_test() ->
 	    dump(Registers)
     end,
     PIDReg ! kill.
-%% dump_memory_test() ->
-%%     PIDReg = spawn(rvscorehw,registers,[init,32,0]),
-%%     PIDReg ! {self(),dump},
-%%     receive
-%% 	{ok,Memory} ->
-%% 	    dump(Memory)
-%%     end,
-%%     PIDReg ! kill.
 -endif.

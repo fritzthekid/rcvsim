@@ -17,7 +17,7 @@ do(Configfilename) ->
     {ok, [OTL]} = file:consult(ROOT ++ "/src/operation-table.config"),
     OpTab = dict:from_list(OTL),
     PIDRegs = spawn(rvscorehw, registers, [init,maps:get(registers,Config),0]),
-    PIDMem =  spawn(rvscorehw, memory, [init,maps:get(memory,Config),0]),
+    PIDMem =  spawn(rvsmemory, memory, [init,maps:get(memory,Config),0]),
     PIDM = maps:from_list([{registers,PIDRegs},{memory,PIDMem},{main,self()}]),
     PIDCtrl = spawn(rvscorehw, control, [PIDM, PP, OpTab, Globals, Data, 0]),
     %%maps:fold(fun(_,V,Acc)->[V]++Acc end,[],PIDM)++[PIDCtrl].
