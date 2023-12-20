@@ -39,7 +39,7 @@ globals_maps(Text,GlobalsFilename) ->
 	{ok,[L]} ->
 	    append_key_values(GM,L);
 	{error,Reason} ->
-	    logger:error("reading file: ~p",[Reason]),
+	    logger:error("reading file (~s): ~p",[GlobalsFilename,Reason]),
 	    GM
 end.
 
