@@ -67,20 +67,23 @@ derive_address(Globals,Label,Key,RAdd)->
 
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").
-derive_address_test() ->
-    logger:info("start derive_address_test",[]),
-    Globals = maps:from_list([{"buffer",maps:from_list([{address,4000}])},
+get_globals() ->
+    Globals = maps:from_list([{"buffer",maps:from_list([{address,500}])},
     			      {"some",maps:from_list([{type,"function"}])}]),
-    logger:info("Globals ~p",[Globals]),
+    Globals.
+derive_address_test() ->
+    Globals = get_globals(),
+%maps:from_list([{"buffer",maps:from_list([{address,4000}])},
+%    			      {"some",maps:from_list([{type,"function"}])}]),
     Res = derive_address(Globals,"40(buffer)"),
-    logger:info("Res ~p",[Res]),
-    ?assertEqual(4040,Res),
+    ?assertEqual(540,Res),
     ?assertEqual({error,notfound},derive_address(Globals,"40(bufferx)")),
     ?assertEqual({error,notfound},derive_address(Globals,"40(some)")),
     ok.
 store_test() ->
+    Globals = get_globals(),
     PIDReg = spawn(rvsmemory,memory,[init,1000,0]),
-    PIDReg ! {self(),store,17,5},
+    PIDReg ! {self(),store,derive_address(Globals,"40(buffer)"),5},
     TimeOut = 1200,
     receive
 	ok ->
@@ -89,7 +92,7 @@ store_test() ->
 	TimeOut ->
 	    ?assert(false)
     end,
-    PIDReg ! {self(),load,17},
+    PIDReg ! {self(),load,derive_address(Globals,"40(buffer)")},
     receive
 	{Val} ->
 	    ?assertEqual(5,Val)
