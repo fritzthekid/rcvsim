@@ -3,6 +3,7 @@
 
 readasm(Filename) ->
     Text = read_text_file_as_list(Filename),
+    rvsutils:write_terms("bck/rawprog_as_list.s",Text),
     Globals = globals_maps(Text,"data/global-address-list.config"),
     TT = lists:foldl(fun(L,Acc) -> Acc++string:strip(string:replace(L,"\t"," ")) end,[],Text),
     { lists:foldl(fun(L,Acc) -> Len=length(string:strip(L)), 
@@ -73,8 +74,13 @@ do_line(L) ->
     LLL=lists:foldl(fun(S,Acc)->Acc++string:split(S," ") end,[],LL),
     LLLL=lists:foldl(fun(S,Acc)->Acc++[string:strip(S)] end,[],LLL),
     F = fun(S,Acc) ->
-		{Int,_} = string:to_integer(S),
-		if is_integer(Int) -> Acc++[Int];
+		{Int,T} = string:to_integer(S),
+		IsInt = (Int=/=error),
+		if IsInt ->
+			IsTInt = (length(T)=:=0),
+			if IsTInt -> Acc++[Int];
+			   true -> Acc++[S]
+			end;
 		   true -> Acc++[S]
 		end
 	end,

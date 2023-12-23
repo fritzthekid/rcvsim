@@ -35,26 +35,33 @@ control(PIDM, Program, OpTab, Globals, Data, PC) ->
     rvsmain:kill(maps:fold(fun(_,V,Acc)-> [V]++Acc end,[],maps:remove(main,PIDM))),
     maps:get(main,PIDM) ! ok.
 
+do_operation_test(Op) ->
+    PIDReg = spawn(rvscorehw,registers,[init,32,0]),
+    PIDMem = spawn(rvsmemory,memory,[init,1000,0]),
+    PIDM = maps:from_list([{registers,PIDReg},{memory,PIDMem}]),
+    {ok, [OpTabL]} = file:consult("src/operation-table.config"),
+    OpTab = dict:from_list(OpTabL),
+    Globals = maps:from_list([{"buffer",maps:from_list([{address,500}])}]),
+    do_operation(PIDM, OpTab, Op, Globals).
+
 do_operation(PIDM, OpTab, Op, Globals) ->
     IsMem = lists:member(hd(Op),dict:fetch_keys(OpTab)),
     if 
 	IsMem ->
-	    %io:format("Op: ~p~n",[Op]),
+	    %logger:info("Op: ~p",[Op]),
 	    do_op(PIDM,Op,OpTab,Globals),
 	    timer:sleep(10),
 	    self() ! ok;
 	true ->
-	    %io:format("!!! n.s.y: ",[]),
-	    %io:format("Op: ~p~n",[Op]),
 	    case hd(Op) of
-		"lw" ->
-		    ok; %io:format("Op: is lw~n",[]);
-		"sw" ->
-		    ok; %io:format("Op: is sw~n",[]);
-		"mv" ->
-		    ok; %io:format("Op: is mv~n",[]);
+		%% "lw" ->
+		%%     ok; %io:format("Op: is lw~n",[]);
+		%% "sw" ->
+		%%     ok; %io:format("Op: is sw~n",[]);
+		%% "mv" ->
+		%%     ok; %io:format("Op: is mv~n",[]);
 		_Else ->
-		    ok %io:format("Op: is unkown ~p~n",[_Else])
+		    logger:info("Op: is unkown ~p",[_Else])
 	    end,
 	    %% timer:sleep(10),
 	    self() ! ok
@@ -68,7 +75,7 @@ do_op(PIDM,Op,OpTab,Globals) ->
     save_to_register(PIDM, DA, do_pat(Pat,Args),Globals).
 
 do_pat(Pat,Args) ->
-    logger:info("Pat: ~p, Args: ~p",[Pat,Args]),
+    logger:debug("Pat: ~p, Args: ~p",[Pat,Args]),
     if 
 	(length(Pat) =:= 1) -> 
 	    hd(Args);
@@ -81,7 +88,8 @@ do_pat(Pat,Args) ->
 		asbsl ->
 		    hd(Args) bsl get(get(2,Pat),Args);
 		addi ->
-		    hd(Args)+get(get(2,Pat),Args);
+		    (hd(Args)+get(get(2,Pat),Args)) rem (1 bsl 12); %% same as %lo(global)
+		lui -> (hd(Args) bsr 12) bsl 12;                    %% same as %hi(global)
 		_Default ->
 		    error
 	    end
@@ -92,38 +100,100 @@ get(N,L) ->
 
 get_arguments(PIDM,Op,L,Globals) ->
     LL = lists:foldl(fun(X,Acc) -> Acc++lists:sublist(Op,X,1) end, [], L),
+    Regs = lists:foldl(fun(X,Acc)->Acc++["a"++integer_to_list(X)] end,[],
+		       lists:seq(0,64))++["sp","s0"],
+    logger:debug("get_arguments: ~p,~p",[Op,L]),
     lists:foldl(fun(A,Acc) ->
 			if
 			    is_number(A) ->
-				% io:format("get_arguments: is_number ~p~n",[A]),
+			        logger:debug("get_argument: is_number ~p,~p",[A,Acc]),
 				Acc++[A];
+			    A =:= "zero" ->
+				logger:debug("get_argument: is_zero ~p,~p",[A,Acc]),
+				Acc++[0];
 			    is_list(A) ->
-				% io:format("get_arguments: is_list ~p~n",[A]),
-				TimeOutLoad=10,
-				maps:get(registers,PIDM) ! {self(),load,A},
-				receive
-				    {ok,Val} ->
-					Acc++[Val];
-				    _ ->
-					Acc++[error]
-				after
-				    TimeOutLoad ->
-					io:format("TimeOutLoad~n",[]),
-					timeout
+				logger:debug("get_argument: is_list ~p",[A]),
+				TimeOutLoad=100,
+				IsReg = lists:member(A,Regs),
+				if IsReg ->
+					maps:get(registers,PIDM) ! {self(),load,A},
+					receive
+					    {ok,Val} ->
+						Acc++[Val];
+					    _ ->
+						Acc++[error]
+					after
+					    TimeOutLoad ->
+						logger:notice("TimeOut load argument"),
+						timeout
+					end;
+				   true ->
+					logger:debug("try load memory ... ~s",[A]),
+					{Prefix,Add} = rvsmemory:derive_address(PIDM,Globals,A),
+					logger:info("load memory ... ~p",[Add]),
+					maps:get(memory,PIDM) ! {self(),load,Add},
+					receive
+					    {ok,Val} ->
+						case Prefix of
+						    absval ->
+							Acc++[Val];
+						    "%hi" ->
+							Acc++[(Val bsr 4096) bsl 4096];
+						    "%lo" ->
+							Acc++[Val rem 4096]
+						end;
+					    _ ->
+						Acc++[error]
+					after
+					    TimeOutLoad ->
+						io:format("TimeOutLoad~n",[]),
+						timeout
+					end
 				end
 			end
 		end, [],LL).
 
 save_to_register(PIDM, DA, Val,Globals) ->
-    maps:get(registers,PIDM) ! {self(), store, DA, Val},
-    TimeOutSave = 10,
-    receive
-	ok ->
-	    ok
-    after
-	TimeOutSave ->
-	    io:format("TimeOutSave~n"),
-	    timeout
+    Regs = lists:foldl(fun(X,Acc)->Acc++["a"++integer_to_list(X)] end,[],
+		       lists:seq(0,64))++["sp","s0"],
+    IsReg = lists:member(DA,Regs),
+    if IsReg ->
+	    logger:info("store in register ~p -> ~p",[Val,DA]),
+	    maps:get(registers,PIDM) ! {self(), store, DA, Val},
+	    TimeOutSave = 100,
+	    receive
+		ok ->
+		    ok
+	    after
+		TimeOutSave ->
+		    io:format("TimeOutSave~n"),
+		    timeout
+	    end;
+       true ->
+	    logger:info("try save in memory (reladdr): ~p: ~p",[DA,Val]),
+	    case rvsmemory:derive_address(PIDM,Globals,DA) of
+		{absval,Add} -> 
+		    logger:info("try save in memory (absaddr): ~p: ~p",[Add,Val]),
+		    if Val =:= "zero" ->
+			    logger:info("!!!!! store Val: zero at ~p",[Add]),
+			    maps:get(memory,PIDM) ! {self(), store, Add, 0};
+		       true ->
+			    logger:info("!!!!! store ~p at ~p",[Val,Add]),
+			    maps:get(memory,PIDM) ! {self(), store, Add, Val}
+		    end,
+		    TimeOutSave = 10,
+		    receive
+			ok ->
+			    ok
+		    after
+			TimeOutSave ->
+			    logger:info("save_to_memory TimeOut",[]),
+			    timeout
+		    end;
+		{"%hi",Val} -> logger:error("%hi not supported yet");
+		{"%hi",Val} -> logger:error("%lo not supported yet");
+		_R -> logger:error("~p not supported yet",[_R])
+	    end
     end.
 
 dump(Registers) ->
@@ -133,7 +203,7 @@ dump(Registers) ->
 registers(init,Size,Filling) ->
     registers(lists:foldl(fun(X,Acc) -> 
 				  Acc++[{"a"++integer_to_list(X),Filling}] end,
-			  [], lists:seq(1,Size))++[{"sp",0},{"s0",0}]).
+			  [], lists:seq(0,Size))++[{"sp",0},{"s0",0}]).
 
 registers(Registers) ->
     TimeOut = 1000,
@@ -146,25 +216,51 @@ registers(Registers) ->
 	    PID ! {ok,Registers},
 	    registers(Registers);
 	{ PID, load, Address } ->
-	    %% logger:info("registers load: ~p~n",[Address]),
+	    logger:debug("registers load: ~p~n",[Address]),
 	    PID ! {ok,maps:get(Address,RMap)},
 	    registers(Registers);
 	{ PID, store, Address, Value } ->
-	    %% logger:info("registers store: ~p: ~p",[Address,Value]),
+	    logger:debug("registers store: ~p: ~p",[Address,Value]),
 	    RR=maps:to_list(maps:put(Address,Value,RMap)),
 	    PID ! ok,
 	    registers(RR)
     after
 	TimeOut ->
-	    io:format("registers timeout~n",[]),
+	    logger:notice("registers timeout",[]),
 	    timeout
     end.
 
+
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").
+store_load_register_test() ->
+    PIDReg = spawn(rvscorehw,registers,[init,32,0]),
+    PIDReg ! {self(),store,"s0",117},
+    TimeOut = 100,
+    receive
+	ok ->
+	    logger:info("store ok"),
+	    ?assert(true),
+	    ok
+    after
+	TimeOut ->
+	    logger:info("store failed: timeout"),
+	    ?assert(false)
+    end,
+    PIDReg ! {self(),load,"s0"},
+    TimeOut = 100,
+    receive
+	{ok,Val} ->
+	    ?assertEqual(117,Val),
+	    logger:info("load succes ~p",[Val])
+    after
+	TimeOut ->
+	    logger:info("load timeout",[]),
+	    ?assert(false)
+    end.
 register_timeout_test() ->
     PID=spawn(rvscorehw,registers,[init,32,0]),
-    timer:sleep(1010),
+    timer:sleep(1100),
     ?assert(is_process_alive(PID)=:=false),
     ok.
 do_pat_test() ->

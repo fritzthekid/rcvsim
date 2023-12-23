@@ -7,17 +7,20 @@ kill(PIDL) ->
 do() ->
     do("/data/config.config").
 do(Configfilename) ->
-    ROOT=".",
+    ROOT="./",
     {ok, [Config]}  = file:consult(ROOT ++ Configfilename),
-    {[_|P],Globals} = rvsreadasm:readasm(ROOT ++ "/data/simple-func.s"),
-    PP = element(2,lists:foldl(fun(X,{I,Acc}) -> 
+    
+    {[_|P],Globals} = rvsreadasm:readasm(ROOT ++ "/data/"++maps:get(programname,Config)),
+    {ok,[Prefix]} = file:consult("data/prefix.code"),
+    PP =  Prefix ++ element(2,lists:foldl(fun(X,{I,Acc}) -> 
 				       {I+1, Acc++[{I,tuple_to_list(X)}]} 
-			       end, {0,[]}, program_to_strings(P))),
+			       end, {length(Prefix),[]}, program_to_strings(P))),
+    rvsutils:write_terms("bck/program.s",[PP]),
     {ok, [Data]} = file:consult(ROOT ++ "/data/" ++ maps:get(dataname,Config)),
     {ok, [OTL]} = file:consult(ROOT ++ "/src/operation-table.config"),
     OpTab = dict:from_list(OTL),
     PIDRegs = spawn(rvscorehw, registers, [init,maps:get(registers,Config),0]),
-    PIDMem =  spawn(rvsmemory, memory, [init,maps:get(memory,Config),0]),
+    PIDMem =  spawn(rvsmemory, memory, [init,maps:get(memory,Config),100]),
     PIDM = maps:from_list([{registers,PIDRegs},{memory,PIDMem},{main,self()}]),
     PIDCtrl = spawn(rvscorehw, control, [PIDM, PP, OpTab, Globals, Data, 0]),
     %%maps:fold(fun(_,V,Acc)->[V]++Acc end,[],PIDM)++[PIDCtrl].
