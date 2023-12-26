@@ -7,43 +7,43 @@ write_terms(Filename, List) ->
     Text = unicode:characters_to_binary(lists:map(Format, List)),
     file:write_file(Filename, Text).
 
-string_to_integer(X) ->
-    {E1,E2} = string:to_integer(X),
-    if 
-	E1 =:= error -> 
-	    {false,X};
-	length(E2) =:= 0 ->
-	    {true,E1};
-	true ->
-	    {false,X}
-    end.
-
-string_to_integer_1(X) ->
-    case {is_integer(X),is_list(X),string:to_integer(X)} of
-	{true,_,{error, _}} ->
-	    {number,X};
-	{false,true,{error, _}} ->
-	    {register,X};
-	{_,true,{Val,[]}} ->
-	    {integer,Val};
-	{_,true,{Ofs,Ref}} ->
-	    IsRel = (hd(Ref) =:= 40) and (lists:last(Ref) =:= 41),
+code_to_object(X) ->
+    Split = if is_list(X) -> 
+			  re:split(X,"[\(\)]",[{return, list}]);
+		     true -> [" "]
+		end,
+    Len = length(Split),
+    %%io:format("~p~n",[{is_integer(X),is_list(X),string:to_integer(X),Len,hd(Split)}]),
+    case {is_integer(X),is_list(X),string:to_integer(X),Len,hd(Split)} of
+	{true,false,{error,_},_,_} ->
+	    {integer,X,0};
+	{false,true,{error,_},1,_} ->
+	    {register,X,0};
+	{false,true,{Val,[]},1,_} ->
+	    {integer,Val,0};
+	{false,true,{error,_},3,"%hi"} ->
+	    [_|[G|_]] = Split,
+	    {memory_access_via_global_hi,0,G};
+	{false,true,{error,_},3,"%lo"} ->
+	    [_|[G|_]] = Split,
+	    {memory_access_via_global_lo,0,G};
+	{false,true,{error,_},3,_} ->
+	    logger:error("neither global memory(%hi,%lo) nor register access ~p",[X]),
+	    {error,"neither relative memory nor register access",X};
+	{false,true,{Ofs,_},3,_} ->
+	    [_|[G|_]] = Split,
+	    Regs = lists:foldl(fun(I,Acc)->
+				 Acc++["a"++integer_to_list(I)] 
+			 end,[],lists:seq(0,15))++["s0","sp"],
+	    GIsReg = lists:member(G,Regs),
 	    if 
-		IsRel ->
-		    G = lists:reverse(tl(lists:reverse(tl(Ref)))),
-		    IsReg = lists:member(G,["s0","sp"]),
-		    if IsReg ->
-			    {memory_acess_via_registr,Ofs,G};
-		       true ->
-			    {memory_access_via_global,Ofs,G}
-		    end;
+		GIsReg ->
+		    {memory_access_via_register,Ofs,G};
 		true ->
-		    logger:error("neither relative memory but neither register nor global access ~p",[X]),
-		    throw({"neither register nor memory access",X})
+		    {error,"neither relative memory nor register access",X}
 	    end;
 	_R ->
-	    logger:error("neither relative memory nor register access ~p: ~p",[X,_R]),
-	    throw({"neither register nor memory access",X,_R})
+	    {error,"neither relative register nor global access",X}
     end.
 
 get_in_list(N,L) ->
@@ -64,16 +64,27 @@ write_terms_test() ->
     {ok, [MyConfig]} = file:consult("test/outputs/config.config"),
     ?assert(Config==MyConfig),
     ok.
-string_to_integer_test() ->
-    ?assertEqual({true,1},string_to_integer("1")),
-    ?assertEqual({false,"1(global)"},string_to_integer("1(global)")),
-    ?assertEqual({false,"a1"},string_to_integer("a1")).
-string_to_integer_1_test() ->
-    ?assertEqual({number,1},string_to_integer_1(1)),
-    ?assertEqual({integer,1},string_to_integer_1("1")),
-    ?assertEqual({memory_acess_via_registr,44,"sp"},string_to_integer_1("44(sp)")),
-    ?assertEqual({memory_access_via_global,1,"global"},string_to_integer_1("1(global)")),
-    ?assertEqual({register,"a1"},string_to_integer_1("a1")).
+code_to_object_test() ->
+    ?assertEqual({integer,1,0},code_to_object(1)),
+    ?assertEqual({integer,1,0},code_to_object("1")),
+    ?assertEqual({memory_access_via_register,44,"sp"},code_to_object("44(sp)")),
+    ?assertEqual({memory_access_via_global_hi,0,"global"},code_to_object("%hi(global)")),
+    ?assertEqual({memory_access_via_global_lo,0,"global"},code_to_object("%lo(global)")),
+    ?assertEqual({register,"a1",0},code_to_object("a1")),
+    case code_to_object("xx(common)") of
+	{error,_,_} ->
+	    ?assert(true);
+	{_R,_,_} ->
+	    ?assert(false)
+    end,
+    case code_to_object("xx(co") of
+	{error,_,_} ->
+	    ?assert(true);
+	{_,_,_} ->
+	    ?assert(false)
+    end,
+    ok.
+
 get_in_list_test() ->
     ?assertEqual("a",get_in_list(1,["a","b",2,5])),
     ?assertEqual(2,get_in_list(3,["a","b",2,5])),

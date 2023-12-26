@@ -20,8 +20,14 @@ memory(Memory) ->
 		    logger:warning("load memory at address ~p",[Address]),
 		    PID ! {ok, 0};
 		true ->
-		    logger:debug("memory load: address ~p: (get value ~p)",[Address,array:get(Address,Memory)]),
-		    PID ! {ok,array:get(max(0,Address),Memory)}
+		    Size = array:size(Memory),
+		    if Address < Size ->
+			    logger:debug("memory load: address ~p: (get value ~p)",[Address,array:get(Address,Memory)]),
+			    PID ! {ok,array:get(max(0,Address),Memory)};
+		       true -> 
+			    logger:error("memory load: address ~p > ~p)",[Address,Size]),
+			    PID ! {ok,0}
+		    end
 	    end,
 	    memory(Memory);
 	{ PID, store, Address, Value } ->
