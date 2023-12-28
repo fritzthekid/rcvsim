@@ -20,8 +20,16 @@ readasm(Filename) ->
 		     end, [],TT), Globals }.
 
 read_text_file_as_list(Filename) ->
-    {ok, Bin} = file:read_file(Filename),
-    [_|Text] = string:split(binary:bin_to_list(Bin),"\n",all),
+    [_|Text] = case file:read_file(Filename) of
+		   {ok, Bin} -> 
+		       string:split(binary:bin_to_list(Bin),"\n",all);
+		   {error,enoent} ->
+		       logger:error("File not found, ~p",[Filename]),
+		       [error];
+		   {error,Reason} ->
+		       logger:error("Error: ~p, ~p",[Reason,Filename]),
+		       [error]
+	       end,
     Text.
 
 globals_maps(Text,GlobalsFilename) ->

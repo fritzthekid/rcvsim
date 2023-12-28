@@ -4,13 +4,16 @@
 kill(PIDL) ->
     lists:foreach(fun(X) -> X ! kill end, PIDL).
 
-do() ->
-    do("/data/config.config").
-do(Configfilename) ->
+run() ->
+    run("data/simple-func.s",[]).
+run(Filename) ->
+    run(Filename,[]).
+run(Filename,ConfigList) ->
     ROOT="./",
-    {ok, [Config]}  = file:consult(ROOT ++ Configfilename),
-    
-    {[_|P],Globals} = rvsreadasm:readasm(ROOT ++ "/data/"++maps:get(programname,Config)),
+    {ok, [RawConfig]}  = file:consult("data/rvs.config"),
+    Config = lists:foldl(fun({X,Y},Map) -> maps:put(X,Y,Map) 
+			 end, RawConfig,ConfigList++[{programname,Filename}]),
+    {[_|P],Globals} = rvsreadasm:readasm(maps:get(programname,Config)),
     {ok,[Prefix]} = file:consult("data/prefix.code"),
     PP =  Prefix ++ element(2,lists:foldl(fun(X,{I,Acc}) -> 
 				       {I+1, Acc++[{I,tuple_to_list(X)}]} 
@@ -32,7 +35,21 @@ do(Configfilename) ->
 	TimeOutMain ->
 	    timeout
     end,
-    {maps:put(main,self(),PIDM),PIDCtrl}.
+    timer:sleep(1000),
+    Regs = case maps:find("dump", Config) of
+	       {ok, "registers"} ->
+		   dump_registers(PIDM);
+	       _R ->
+		   []
+	   end,
+    timer:sleep(100),
+    kill(maps:fold(fun(_,V,Acc) -> Acc++[V] end, [], PIDM)),
+    SRegs = if is_list(Regs) ->
+		    lists:sort(fun({A,_},{B,_}) -> A < B end, Regs);
+	       true->
+		    Regs
+	    end,
+    {{maps:put(main,self(),PIDM),PIDCtrl},SRegs}.
     
 program_to_strings(Program) ->
     lists:foldl(fun(Op, Acc) -> Acc ++ [op_to_string(Op)] end, [], Program).
@@ -49,11 +66,22 @@ op_to_string(Operation) ->
 				      end
 			      end, [], tuple_to_list(Operation))).
 							     
+dump_registers(PIDM) ->
+    maps:get(registers,PIDM) ! { self(), dump },
+    TimeOutDump = 100,
+    receive
+	{ok,Registers} ->
+	    Registers
+    after
+	TimeOutDump ->
+	    logger:error("timeout dump_registers"),
+	    timeout
+    end.
 
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").
 rvsmain_kill_control_test() ->
-    {_,_} = do(),
+    {_,_} = run(),
     timer:sleep(1000),
     %%kill(PIDCtrl).	
     ok.

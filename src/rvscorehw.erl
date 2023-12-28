@@ -23,34 +23,28 @@ control(PIDM, Program, OpTab, Globals, Data, PC) ->
 		    control(PIDM,Program,OpTab,Globals,Data,PC+1)
 	    end
     end,
-    maps:get(registers,PIDM) ! {self(), dump},
-    %TimeOutDump = 1000, 
-    receive
-	{ok,_Registers} ->
-	    ok %dump(_Registers)
-    %after
-	    % TimeOutDump ->
-	    % io:format("Dump Timeout~n",[])
-    end,
-    rvsmain:kill(maps:fold(fun(_,V,Acc)-> [V]++Acc end,[],maps:remove(main,PIDM))),
+    %% maps:get(registers,PIDM) ! {self(), dump},
+    %% %TimeOutDump = 1000, 
+    %% receive
+    %% 	{ok,_Registers} ->
+    %% 	    ok %dump(_Registers)
+    %% %after
+    %% 	    % TimeOutDump ->
+    %% 	    % io:format("Dump Timeout~n",[])
+    %% end,
+    %%rvsmain:kill(maps:fold(fun(_,V,Acc)-> [V]++Acc end,[],maps:remove(main,PIDM))),
     maps:get(main,PIDM) ! ok.
 
 do_operation(PIDM, OpTab, Op, Globals) ->
     IsMem = lists:member(hd(Op),dict:fetch_keys(OpTab)),
     if 
 	IsMem ->
-	    %logger:info("Op: ~p",[Op]),
+	    logger:debug("Op: ~p",[Op]),
 	    do_op(PIDM,Op,OpTab,Globals),
 	    timer:sleep(10),
 	    self() ! ok;
 	true ->
 	    case hd(Op) of
-		%% "lw" ->
-		%%     ok; %io:format("Op: is lw~n",[]);
-		%% "sw" ->
-		%%     ok; %io:format("Op: is sw~n",[]);
-		%% "mv" ->
-		%%     ok; %io:format("Op: is mv~n",[]);
 		_Else ->
 		    logger:info("Op: is unkown ~p",[_Else])
 	    end,
@@ -91,8 +85,6 @@ get(N,L) ->
 
 get_arguments(PIDM,Op,L,Globals) ->
     LL = lists:foldl(fun(X,Acc) -> Acc++lists:sublist(Op,X,1) end, [], L),
-    %% Regs = lists:foldl(fun(X,Acc)->Acc++["a"++integer_to_list(X)] end,[],
-    %% lists:seq(0,64))++["sp","s0"],
     logger:debug("get_arguments: ~p,~p",[Op,L]),
     lists:foldl(fun(A,Acc) ->
 			case rvsutils:code_to_object(A) of 
@@ -102,19 +94,6 @@ get_arguments(PIDM,Op,L,Globals) ->
 				logger:debug("get_argument: register ~p",[Name]),
 				Val = get_register(PIDM,Name),
 				Acc ++ [Val];
-				%% TimeOutLoad=100,
-				%% maps:get(registers,PIDM) ! {self(),load,Name},
-				%% receive
-				%%     {ok,Val} ->
-				%% 	logger:debug("get_argument ~p <- ~p",[Name,Val]),
-				%% 	Acc++[Val];
-				%%     _ ->
-				%% 	Acc++[error]
-				%% after
-				%%     TimeOutLoad ->
-				%% 	io:format("TimeOutLoad~n",[]),
-				%% 	timeout
-				%% end;
 			    {memory_access_via_register,Ofs,Name} ->
 				logger:debug("get_argument: memory_access_via_register ~p",[Name]),
 				Add = get_register(PIDM,Name),
@@ -194,8 +173,7 @@ get_register(PIDM, Name) ->
     end.
 
 save_to_register(PIDM, DA, Val,Globals) ->
-    Regs = lists:foldl(fun(X,Acc)->Acc++["a"++integer_to_list(X)] end,[],
-		       lists:seq(0,64))++["sp","s0"],
+    Regs = rvsutils:registernames(32),
     IsReg = lists:member(DA,Regs),
     if IsReg ->
 	    logger:info("store in register ~p -> ~p",[Val,DA]),
@@ -242,8 +220,8 @@ dump(Registers) ->
 
 registers(init,Size,Filling) ->
     registers(lists:foldl(fun(X,Acc) -> 
-				  Acc++[{"a"++integer_to_list(X),Filling}] end,
-			  [], lists:seq(0,Size))++[{"sp",0},{"s0",0}]).
+				  Acc++[{X,Filling}] end,
+			  [], rvsutils:registernames(Size))).
 
 registers(Registers) ->
     TimeOut = 1000,

@@ -32,9 +32,7 @@ code_to_object(X) ->
 	    {error,"neither relative memory nor register access",X};
 	{false,true,{Ofs,_},3,_} ->
 	    [_|[G|_]] = Split,
-	    Regs = lists:foldl(fun(I,Acc)->
-				 Acc++["a"++integer_to_list(I)] 
-			 end,[],lists:seq(0,15))++["s0","sp"],
+	    Regs = registernames(32),
 	    GIsReg = lists:member(G,Regs),
 	    if 
 		GIsReg ->
@@ -56,12 +54,25 @@ get_in_list(N,L) ->
 	    hd(lists:sublist(L,min(N,length(L)),1))
     end.
 
+registernames(N) ->
+    %% lists:foldl(fun(X,Acc) -> 
+    %% 			[io_lib:format("a~2..0B", [X])] ++ Acc 
+    %% 		end, [], lists:seq(0,N-1))++["s0","sp"].
+    lists:foldl(fun(I,Acc) ->
+			Acc++["a"++integer_to_list(I)]
+		end, [], lists:seq(0,N-1))++["s0","sp"].
+
+printregisters(L) ->
+    printlist(lists:foldl(fun({A,B},Acc)->if B=/=0 -> Acc++[{A,B}];true->Acc end end,[],L)).
+printlist(L) ->
+    lists:foreach(fun(X)->io:format("~p~n",[X]) end, L).
+
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").
 write_terms_test() ->
-    {ok, [Config]} = file:consult("data/config.config"),
-    write_terms("test/outputs/config.config",[Config]),
-    {ok, [MyConfig]} = file:consult("test/outputs/config.config"),
+    {ok, [Config]} = file:consult("data/rvs.config"),
+    write_terms("test/outputs/rvs.config",[Config]),
+    {ok, [MyConfig]} = file:consult("test/outputs/rvs.config"),
     ?assert(Config==MyConfig),
     ok.
 code_to_object_test() ->
@@ -92,4 +103,14 @@ get_in_list_test() ->
     ?assertEqual(5,get_in_list(-1,["a","b",2,5])),
     ?assertEqual("a",get_in_list(0,["a","b",2,5])),
     ?assertEqual("a",get_in_list(-4,["a","b",2,5])).
+registernames_test() ->
+    L = registernames(32),
+    ?assert(lists:member("sp",L)),
+    ?assert(lists:member("a0",L)),
+    ?assert(lists:member("s7",L)=:=false).
+printlist_test() ->
+    ?assertEqual(ok,printlist(registernames(32))).
+printregisters_test() ->
+    L = [{a,1},{b,0}],
+    ?assertEqual(ok,printregisters(L)).
 -endif.
