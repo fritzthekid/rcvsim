@@ -55,7 +55,7 @@ derive_address(PIDM,Globals,Code) ->
 	end,
     [Prefix,Label,_] = L,
     logger:debug("derive_address ~p, ~p, (~p)",[Prefix,Label,L]),
-    case { lists:member(Label,["s0","sp"]), Prefix } of
+    case { lists:member(Label,rvsutils:registernames(32)), Prefix } of
 	{true,_} -> maps:get(registers,PIDM) ! {self(), load, Label },
 		logger:debug("try load register ... ~p",[Label]),
 		Offs = case string:to_integer(Prefix) of

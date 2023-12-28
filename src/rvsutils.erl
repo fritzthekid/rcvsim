@@ -17,6 +17,8 @@ code_to_object(X) ->
     case {is_integer(X),is_list(X),string:to_integer(X),Len,hd(Split)} of
 	{true,false,{error,_},_,_} ->
 	    {integer,X,0};
+	{false,true,{error,_},1,"zero"} ->
+	    {integer,0,0};
 	{false,true,{error,_},1,_} ->
 	    {register,X,0};
 	{false,true,{Val,[]},1,_} ->

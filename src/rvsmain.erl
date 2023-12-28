@@ -39,9 +39,14 @@ run(Filename,ConfigList) ->
     Regs = case maps:find("dump", Config) of
 	       {ok, "registers"} ->
 		   dump_registers(PIDM);
+	       {ok, {"memory",[A,B]}} ->
+		   logger:info("dump memory: ~p - ~p",[A,B]),
+		   dump_memory(PIDM,A,B),
+		   [];
 	       _R ->
 		   []
 	   end,
+    logger:info("Config: ~p",[Config]),
     timer:sleep(100),
     kill(maps:fold(fun(_,V,Acc) -> Acc++[V] end, [], PIDM)),
     SRegs = if is_list(Regs) ->
@@ -77,6 +82,21 @@ dump_registers(PIDM) ->
 	    logger:error("timeout dump_registers"),
 	    timeout
     end.
+
+dump_memory(PIDM, A, E) ->
+    maps:get(memory,PIDM) ! { self(), dump },
+    TimeOutDump = 100,
+    Memory = receive
+		 {ok,Mem} ->
+		     Mem
+	     after
+		 TimeOutDump ->
+		     logger:error("timeout dump_memory"),
+		     timeout
+	     end,
+    lists:foreach(fun(V)->
+			  io:format("mem: ~p ~p~n",[V,array:get(V,Memory)])
+		  end, lists:seq(A,E)).
 
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").
