@@ -138,8 +138,8 @@ dump_memory_test() ->
     PIDReg ! kill.
 timeout_memory_test()->
     PIDReg = spawn(rvsmemory,memory,[init,40,0]),
-    timer:sleep(600),
+    timer:sleep(800),
     ?assertEqual(true,is_process_alive(PIDReg)),
-    timer:sleep(600),
+    timer:sleep(1500),
     ?assertEqual(false,is_process_alive(PIDReg)).
 -endif.

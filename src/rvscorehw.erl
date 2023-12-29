@@ -241,7 +241,7 @@ store_load_register_test() ->
     end.
 register_timeout_test() ->
     PID=spawn(rvscorehw,registers,[init,32,0]),
-    timer:sleep(1100),
+    timer:sleep(2100),
     ?assert(is_process_alive(PID)=:=false),
     ok.
 do_pat_test() ->
