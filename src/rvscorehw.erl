@@ -58,10 +58,14 @@ do_pat(Pat,Args) ->
 	    case lists:last(Pat) of
 		"add" ->
 		    hd(Args)+get(get(2,Pat),Args);
+		"sub" ->
+		    hd(Args)-get(get(2,Pat),Args);
 		"mul" ->
 		    hd(Args)*get(get(2,Pat),Args);
-		"asbsl" ->
+		"bsl" ->
 		    hd(Args) bsl get(get(2,Pat),Args);
+		"bsr" ->
+		    hd(Args) bsr get(get(2,Pat),Args);
 		"addi" ->
 		    (hd(Args)+get(get(2,Pat),Args)) rem (1 bsl 12); %% same as %lo(global)
 		"lui" -> (hd(Args) bsr 12) bsl 12;                    %% same as %hi(global)
@@ -183,7 +187,7 @@ registers(init,Size,Filling) ->
 			  [], rvsutils:registernames(Size))).
 
 registers(Registers) ->
-    TimeOut = 1000,
+    TimeOut = 2000,
     RMap = maps:from_list(Registers),
     receive
 	kill ->

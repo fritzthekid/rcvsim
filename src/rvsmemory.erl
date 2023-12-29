@@ -5,7 +5,7 @@ memory(init,Size,Filling) ->
     memory(array:new(Size,{default,Filling})).
 
 memory(Memory) ->
-    TimeOut = 1000,
+    TimeOut = 2000,
     receive
 	kill ->
 	    io:format("memory killed~n",[]),
