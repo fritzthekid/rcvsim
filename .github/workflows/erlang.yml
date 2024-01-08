@@ -21,7 +21,7 @@ jobs:
         rebar3 compile > report.log
         cat report.log
     - name: Test Preparation
-      run: make
+      run: apt-get install gcc-riscv64-unknown-elf
     - name: Run tests
       run: |
         rebar3 --version
