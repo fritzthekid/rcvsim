@@ -19,6 +19,7 @@ jobs:
     - name: Preparation
       run: |
         sudo apt-get install -y erlang
+        sudo apt-get install -y rebar3
         sudo apt-get install -y gcc-riscv64-unknown-elf
     - name: Compile
       run: 
