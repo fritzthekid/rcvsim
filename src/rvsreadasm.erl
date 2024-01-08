@@ -141,17 +141,17 @@ type_of_globals(OAcc,[G|T],Text) ->
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").
 globals_test() ->
-    G = globals_maps(read_text_file_as_list("data/func-with-globals.s"),"test/data/no-globals.config"),
+    G = globals_maps(read_text_file_as_list("test/assembler/func-with-globals.s"),"test/data/no-globals.config"),
     ?assertEqual("4000",maps:get(size,maps:get("buffer",G))),
     ok.
 list_text_test() ->
-    Text = read_text_file_as_list("data/func-with-globals.s"),
+    Text = read_text_file_as_list("test/assembler/func-with-globals.s"),
     ?assertEqual(19,length(list_text(Text,3,22))),
     print_text(Text).
 globals_maps_test() ->
-    GM = globals_maps(read_text_file_as_list("data/func-with-globals.s"),
+    GM = globals_maps(read_text_file_as_list("test/assembler/func-with-globals.s"),
 		     "test/data/no-globals.config"),
-    GX = globals_maps(read_text_file_as_list("data/func-with-globals.s"),
+    GX = globals_maps(read_text_file_as_list("test/assembler/func-with-globals.s"),
 		      "test/x/somefile"),
     ?assert(GM==GX).
 -endif.

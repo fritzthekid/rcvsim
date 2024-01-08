@@ -11,11 +11,15 @@ jobs:
 
     runs-on: ubuntu-latest
 
-    container:
-      image: erlang:24.1.0
+    # container:
+    #  image: erlang:24.1.0
 
     steps:
     - uses: actions/checkout@v3
+    - name: Preparation
+      run: |
+        apt-get install -y erlang
+        apt-get install -y gcc-riscv64-unknown-elf
     - name: Compile
       run: 
         rebar3 compile > report.log
