@@ -41,7 +41,7 @@ rvsmain_run(Filename,ConfigList) ->
 rvsmain_run_test() ->
     rvsmain_run("",[]).
 rvsmain_run_global_test()->
-    rvsmain_run("data/func-with-globals.s",[]).
+    rvsmain_run("test/assembler/func-with-globals.s",[]).
 %%rvsmain_run_simple_test()->
-%%    rvsmain_run("data/empty.s",[{"dump","registers"}]).
+%%    rvsmain_run("test/assembler/empty.s",[{"dump","registers"}]).
 -endif.

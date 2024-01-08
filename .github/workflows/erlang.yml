@@ -20,10 +20,11 @@ jobs:
       run: 
         rebar3 compile > report.log
         cat report.log
+    - name: Test Preparation
+      run: make
     - name: Run tests
       run: |
         rebar3 --version
-        # rebar3 help eunit
         rebar3 eunit --sys_config config/sys.config --cover --verbose
         rebar3 cover -m 50 --verbose > x.log
         cat x.log | tee -a report.log

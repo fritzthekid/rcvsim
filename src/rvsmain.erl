@@ -5,7 +5,7 @@ kill(PIDL) ->
     lists:foreach(fun(X) -> X ! kill end, PIDL).
 
 run() ->
-    run("data/simple-func.s",[]).
+    run("test/assembler/simple-func.s",[]).
 run(Filename) ->
     run(Filename,[]).
 run(Filename,ConfigList) ->
