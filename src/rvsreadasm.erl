@@ -2,7 +2,7 @@
 -compile(export_all).
 
 readasm(Filename) ->
-    Text = read_text_file_as_list(Filename),
+    Text = remove_comment(read_text_file_as_list(Filename)),
     rvsutils:write_terms("bck/rawprog_as_list.s",Text),
     Globals = globals_maps(Text,"data/global-address-list.config"),
     TT = lists:foldl(fun(L,Acc) -> Acc++string:strip(string:replace(L,"\t"," ")) end,[],Text),
@@ -31,6 +31,17 @@ read_text_file_as_list(Filename) ->
 		       [error]
 	       end,
     Text.
+
+remove_comment(Text) ->
+    [H|T] = Text,
+    lists:foldl(fun(L,Acc) ->
+			case re:run(L,"^[ ]*#.*") of
+			    {match,_} ->
+				Acc;
+			    nomatch ->
+				Acc ++ [L]
+			end
+		end, [H], T).
 
 globals_maps(Text,GlobalsFilename) ->
     G=grep_globals(Text),

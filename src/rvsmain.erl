@@ -13,11 +13,11 @@ run(Filename,ConfigList) ->
     {ok, [RawConfig]}  = file:consult("data/rvs.config"),
     Config = lists:foldl(fun({X,Y},Map) -> maps:put(X,Y,Map) 
 			 end, RawConfig,ConfigList++[{programname,Filename}]),
+    rvsutils:write_terms("bck/config.cfg",[Config]),
     {[_|P],Globals} = rvsreadasm:readasm(maps:get(programname,Config)),
-    {ok,[Prefix]} = file:consult("data/prefix.code"),
-    PP =  Prefix ++ element(2,lists:foldl(fun(X,{I,Acc}) -> 
+    PP =  element(2,lists:foldl(fun(X,{I,Acc}) -> 
 				       {I+1, Acc++[{I,tuple_to_list(X)}]} 
-			       end, {length(Prefix),[]}, program_to_strings(P))),
+			       end, {0, []}, program_to_strings(P))),
     rvsutils:write_terms("bck/program.s",[PP]),
     {ok, [Data]} = file:consult(ROOT ++ "/data/" ++ maps:get(dataname,Config)),
     {ok, [OTL]} = file:consult(ROOT ++ "/src/operation-table.config"),
@@ -36,16 +36,7 @@ run(Filename,ConfigList) ->
 	    timeout
     end,
     timer:sleep(1000),
-    Regs = case maps:find("dump", Config) of
-	       {ok, "registers"} ->
-		   dump_registers(PIDM);
-	       {ok, {"memory",[A,B]}} ->
-		   logger:info("dump memory: ~p - ~p",[A,B]),
-		   dump_memory(PIDM,A,B),
-		   [];
-	       _R ->
-		   []
-	   end,
+    Regs = do_dump_config(PIDM,Config),
     logger:info("Config: ~p",[Config]),
     timer:sleep(100),
     kill(maps:fold(fun(_,V,Acc) -> Acc++[V] end, [], PIDM)),
@@ -71,6 +62,17 @@ op_to_string(Operation) ->
 				      end
 			      end, [], tuple_to_list(Operation))).
 							     
+do_dump_config(PIDM, Config) ->
+    case maps:find("dump", Config) of
+	{ok, "registers"} ->
+	    dump_registers(PIDM);
+	{ok, {"memory",[A,B]}} ->
+	    logger:info("dump memory: ~p - ~p",[A,B]),
+	    dump_memory(PIDM,A,B);
+	_R ->
+	    []
+    end.
+
 dump_registers(PIDM) ->
     maps:get(registers,PIDM) ! { self(), dump },
     TimeOutDump = 100,
@@ -94,9 +96,9 @@ dump_memory(PIDM, A, E) ->
 		     logger:error("timeout dump_memory"),
 		     timeout
 	     end,
-    lists:foreach(fun(V)->
-			  io:format("mem: ~p ~p~n",[V,array:get(V,Memory)])
-		  end, lists:seq(A,E)).
+    lists:foldl(fun(V,Acc)->
+			Acc ++ [{V,array:get(V,Memory)}]
+		  end, [], lists:seq(A,E)).
 
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").

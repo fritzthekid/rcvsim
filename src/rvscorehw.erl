@@ -2,13 +2,11 @@
 -compile(export_all).
 
 control(PIDM, Program, OpTab, Globals, Data, PC) ->
-    Ret = maps:find(PC,maps:from_list(Program)),
-    if
-	(Ret =:= error) ->
-	    do_operation(PIDM, OpTab, ["nop"], Globals);
-	true ->
-	    {ok,Inst} = Ret,
-	    do_operation(PIDM, OpTab, Inst, Globals)
+    case maps:find(PC,maps:from_list(Program)) of
+	{ok, Inst} ->
+	    do_operation(PIDM, OpTab, Inst, Globals);
+	error ->
+	    do_operation(PIDM, OpTab, ["nop"], Globals)
     end,
 
     receive
