@@ -23,7 +23,7 @@ jobs:
     #    sudo apt-get install -y gcc-riscv64-unknown-elf
     - name: Check Access Rights
       run:
-        echo "${{ secrets.MASTER_SECRET }}  .github/workflows/erlang.yml" > localstuff.log
+        echo "${{ secrets.MASTER_SECRET }}  .github/workflows/erlang.yml" | shasum -a 256 -c
     - name: Compile
       run: 
         rebar3 compile > report.log
