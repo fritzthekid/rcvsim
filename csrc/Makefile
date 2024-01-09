@@ -1,6 +1,6 @@
 CC=riscv64-unknown-elf-gcc
 SRCS = $(wildcard *.c)
-ASDIR=../test/assembler
+ASDIR=../_build/obj
 ASFILES=$(patsubst %.c,$(ASDIR)/%.s,$(SRCS))
 
 all: $(ASFILES)

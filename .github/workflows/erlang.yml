@@ -37,7 +37,7 @@ jobs:
         rebar3 cover -m 50 --verbose > x.log
         cat x.log | tee -a report.log
         rm -rf results && mkdir results
-        cp log/rvs.log results/
+        cp _build/log/rvs.log results/
         cp report.log results/
     - uses: actions/upload-artifact@v3
       with:
