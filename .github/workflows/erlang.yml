@@ -24,12 +24,12 @@ jobs:
     - name: Check Access Rights
       run:
         echo "${{ secrets.MASTER_SECRET }}  .github/workflows/erlang.yml" | shasum -a 256 -c
+    - name: Setup Directories and Objects
+      run: make
     - name: Compile
       run: 
         rebar3 compile > report.log
         cat report.log
-    - name: Test Preparation
-      run: make
     - name: Run tests
       run: |
         rebar3 --version
