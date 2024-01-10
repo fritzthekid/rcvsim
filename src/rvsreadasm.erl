@@ -5,6 +5,7 @@ readasm(Filename) ->
     Text = remove_comment(read_text_file_as_list(Filename)),
     rvsutils:write_terms("bck/rawprog_as_list.s",Text),
     Globals = globals_maps(Text,"data/global-address-list.config"),
+    Labels = maps:from_list(grep_labels(Text)),
     TT = lists:foldl(fun(L,Acc) -> Acc++string:strip(string:replace(L,"\t"," ")) end,[],Text),
     { lists:foldl(fun(L,Acc) -> Len=length(string:strip(L)), 
 				   if Len > 0 -> 
@@ -17,7 +18,7 @@ readasm(Filename) ->
 					   end;
 				      true -> Acc
 				   end
-		     end, [],TT), Globals }.
+		     end, [],TT), { Globals, Labels } }.
 
 read_text_file_as_list(Filename) ->
     [_|Text] = case file:read_file(Filename) of
@@ -93,14 +94,10 @@ do_line(L) ->
     LLL=lists:foldl(fun(S,Acc)->Acc++string:split(S," ") end,[],LL),
     LLLL=lists:foldl(fun(S,Acc)->Acc++[string:strip(S)] end,[],LLL),
     F = fun(S,Acc) ->
-		{Int,T} = string:to_integer(S),
-		IsInt = (Int=/=error),
-		if IsInt ->
-			IsTInt = (length(T)=:=0),
-			if IsTInt -> Acc++[Int];
-			   true -> Acc++[S]
-			end;
-		   true -> Acc++[S]
+		case string:to_integer(S) of
+		    {error,_} -> Acc++[S];
+		    {Int,[]} -> Acc++[Int];
+		    {_,_} -> Acc++[S]
 		end
 	end,
     list_to_tuple(lists:foldl(F,[],LLLL)).
@@ -149,12 +146,37 @@ type_of_globals(OAcc,[G|T],Text) ->
 		       end, OAcc,Text),
     type_of_globals(NAcc,T,Text).
 
+grep_labels(Text)->
+    F = fun(L,{I,Acc}) ->
+		case re:run(L,"^\t[a-z]+.*") of
+		    {match,_} -> II = I+1; 
+		    nomatch -> II = I
+		end,
+		case re:run(L,"\.L[0-9]+:.*") of
+		    {match,_} ->
+			[Lab|_] = string:split(L,":"),
+			{ II, Acc ++ [{Lab,I}] };
+
+		    nomatch -> { II, Acc }
+		end
+	end,
+    {_,Labels} = lists:foldl(F,{0,[]},Text),
+    Labels.
+
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").
 globals_test() ->
     G = globals_maps(read_text_file_as_list("_build/obj/func-with-globals.s"),"test/data/no-globals.config"),
     ?assertEqual("4000",maps:get(size,maps:get("buffer",G))),
     ok.
+labels_test() ->
+    Text = ["bla","fritz","\tload 100", "\tsw a5,100",
+	    ".L7:","\tfasdaf",".asfd","asdfasfd","\tasdf",".L17:"],
+    Labels = maps:from_list(grep_labels(Text)),
+    ?assertEqual(2,length(maps:keys(Labels))),
+    ?assertEqual(4,maps:get(".L17",Labels)),
+    ?assertEqual(error,maps:find(".L8",Labels)),
+    ?assertException(error,_,maps:get("asfd",Labels)).
 list_text_test() ->
     Text = read_text_file_as_list("_build/obj/func-with-globals.s"),
     ?assertEqual(19,length(list_text(Text,3,22))),

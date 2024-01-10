@@ -1,51 +1,65 @@
 -module(rvscorehw).
 -compile(export_all).
 
-control(PIDM, Program, OpTab, Globals, Data, PC) ->
+control(PIDM, Program, OpTab, Defines, Data, PC) ->
     case maps:find(PC,maps:from_list(Program)) of
 	{ok, Inst} ->
-	    do_operation(PIDM, OpTab, Inst, Globals);
+	    do_operation(PIDM, OpTab, Inst, Defines);
 	error ->
-	    do_operation(PIDM, OpTab, ["nop"], Globals)
+	    do_operation(PIDM, OpTab, ["nop"], Defines)
     end,
 
     receive
 	kill ->
 	    io:format("control killed~n",[]),
 	    ok;
+	{ok,jump,Val} ->
+	    if
+		Val < 0 ->
+		    control(PIDM,Program,OpTab,Defines,Data,PC+1);
+		true ->
+		    control(PIDM,Program,OpTab,Defines,Data,Val)
+	    end;
 	ok ->
 	    if 
 		PC >= length(Program) ->
 		    ok;
 		true ->
-		    control(PIDM,Program,OpTab,Globals,Data,PC+1)
+		    control(PIDM,Program,OpTab,Defines,Data,PC+1)
 	    end
     end,
     maps:get(main,PIDM) ! ok.
 
-do_operation(PIDM, OpTab, Op, Globals) ->
+do_operation(PIDM, OpTab, Op, Defines) ->
     IsMem = lists:member(hd(Op),dict:fetch_keys(OpTab)),
     if 
 	IsMem ->
 	    logger:debug("Op: ~p",[Op]),
-	    do_op(PIDM,Op,OpTab,Globals),
+	    do_op(PIDM,Op,OpTab,Defines),
 	    timer:sleep(10),
 	    self() ! ok;
 	true ->
-	    case hd(Op) of
-		_Else ->
-		    logger:info("Op: is unkown ~p",[_Else])
-	    end,
-	    %% timer:sleep(10),
+	    logger:info("Op: is unknown ~p",[Op]),
 	    self() ! ok
     end.
     %% ok.
 
-do_op(PIDM,Op,OpTab,Globals) ->
+do_op(PIDM,Op,OpTab,{Globals,Labels}) ->
     logger:info("Op: ~p",[Op]),
     [DR,AL,Pat] = dict:fetch(hd(Op),OpTab),
     {DA,Args} = {hd(lists:sublist(Op,DR,1)),get_arguments(PIDM,Op,AL,Globals)},
-    save_to_location(PIDM, DA, do_pat(Pat,Args),Globals).
+    PatResult = do_pat(Pat,Args),
+    case maps:find(DA,Labels) of
+	error -> save_to_location(PIDM, DA, PatResult,Globals);
+	{ok,Val} ->
+	    logger:debug("do_op jump to ~p, ~p",[Val,PatResult]),
+	    if 
+		PatResult ->
+		    self() ! {ok,jump,Val};
+		true ->
+		    self() ! {ok,jump,-1}
+	    end
+    end.
 
 do_pat(Pat,Args) ->
     logger:debug("Pat: ~p, Args: ~p",[Pat,Args]),
@@ -60,6 +74,8 @@ do_pat(Pat,Args) ->
 		    hd(Args)-get(get(2,Pat),Args);
 		"mul" ->
 		    hd(Args)*get(get(2,Pat),Args);
+		"rem" ->
+		    hd(Args) rem get(get(2,Pat),Args);
 		"bsl" ->
 		    hd(Args) bsl get(get(2,Pat),Args);
 		"bsr" ->
@@ -67,11 +83,35 @@ do_pat(Pat,Args) ->
 		"addi" ->
 		    (hd(Args)+get(get(2,Pat),Args)) rem (1 bsl 12); %% same as %lo(global)
 		"lui" -> (hd(Args) bsr 12) bsl 12;                    %% same as %hi(global)
+		"li" -> hd(Args);
 		"sw" -> hd(Args);
+		"bne" ->
+		    logger:debug("do_pat bne: ~p ~p",[Pat,Args]),
+		    hd(Args) =/= get(get(2,Pat),Args);
+		"ble" ->
+		    logger:debug("do_pat ble: ~p ~p",[Pat,hd(Args)]),
+		    hd(Args) =< get(get(2,Pat),Args);
 		_Default ->
 		    error
 	    end
     end.
+
+%% do_branching(PIDM, {_,OpTab}, Op, Defines) ->
+%%     IsMem = lists:member(hd(Op),dict:fetch_keys(OpTab)),
+%%     if 
+%% 	IsMem ->
+%% 	    logger:debug("Op: ~p",[Op]),
+%% 	    do_op(PIDM,Op,OpTab,Defines),
+%% 	    timer:sleep(10),
+%% 	    self() ! ok;
+%% 	true ->
+%% 	    case hd(Op) of
+%% 		_Else ->
+%% 		    logger:info("Op: is unkown ~p",[_Else])
+%% 	    end,
+%% 	    %% timer:sleep(10),
+%% 	    self() ! ok
+%%     end.
 
 get(N,L) ->
     hd(lists:sublist(L,N,1)).
@@ -169,8 +209,8 @@ save_to_location(PIDM, DA, Val,Globals) ->
 			    logger:info("save_to_memory TimeOut",[]),
 			    timeout
 		    end;
-		{"%hi",Val} -> logger:error("%hi not supported yet");
-		{"%hi",Val} -> logger:error("%lo not supported yet");
+		%% {"%hi",Val} -> logger:error("%hi not supported yet");
+		%% {"%hi",Val} -> logger:error("%lo not supported yet");
 		_R -> logger:error("~p not supported yet",[_R])
 	    end
     end.

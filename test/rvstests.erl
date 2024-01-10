@@ -55,7 +55,10 @@ rvsmain_run_test1_test() ->
     C=maps:get(408,maps:from_list(Mem)),
     ?assertEqual(A+B+((A*C) bsr 1),maps:get(412,maps:from_list(Mem))),
     ok.
-
+rvsmain_run_test2_test() ->
+    {_,Mem} = rvsmain:run("_build/obj/test2.s",[{"dump", {"memory",[400,460]}}]),
+    ?assertEqual(620,maps:get(412,maps:from_list(Mem))),
+    ?assertEqual(471,maps:get(452,maps:from_list(Mem))).
 %%rvsmain_run_simple_test()->
 %%    rvsmain_run("_build/obj/empty.s",[{"dump","registers"}]).
 -endif.

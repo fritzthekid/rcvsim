@@ -77,12 +77,18 @@ derive_address(PIDM,Globals,Code) ->
 	{_,_} -> derive_address(Globals,Label,address,Prefix)
     end.
 
-derive_address(Globals,Label,Key,Prefix)-> 
-    case lists:member(Label,maps:keys(Globals)) of
+derive_address(Globals,Label,Key,Prefix)->
+    case re:run(Label,".*[+][0-9]+") of
+	nomatch -> { Lab, Offset } = { Label, 0 };
+	{match,_} -> 
+	    [ Lab, Off ] = string:split(Label,"+"),
+	    { Offset,_ } = string:to_integer(Off)
+    end,
+    case lists:member(Lab,maps:keys(Globals)) of
         true ->
-	    Val = maps:get(Key,maps:get(Label,Globals)),
-	    logger:info("derive: ~p,~p",[Prefix,Val]),
-	    {Prefix,Val};
+	    Val = maps:get(Key,maps:get(Lab,Globals)),
+	    logger:info("derive: ~p,~p",[Prefix,Val+Offset]),
+	    {Prefix,Val+Offset};
 	_ ->
 	    logger:error("label ~p not found in globals ~p",[Label,Globals]),
 	    {error,notfound}
