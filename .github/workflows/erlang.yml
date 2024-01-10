@@ -9,13 +9,23 @@ jobs:
 
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: [ self-hosted ]
 
-    container:
-      image: erlang:24.1.0
+    # container:
+    #  image: erlang:24.1.0
 
     steps:
     - uses: actions/checkout@v3
+    # - name: Preparation
+    #   run: |
+    #     sudo apt-get install -y erlang
+    #     sudo apt-get install -y rebar3
+    #    sudo apt-get install -y gcc-riscv64-unknown-elf
+    - name: Check Access Rights
+      run:
+        echo "${{ secrets.MASTER_SECRET }}  .github/workflows/erlang.yml" | shasum -a 256 -c
+    - name: Setup Directories and Objects
+      run: make
     - name: Compile
       run: 
         rebar3 compile > report.log
@@ -23,12 +33,11 @@ jobs:
     - name: Run tests
       run: |
         rebar3 --version
-        # rebar3 help eunit
         rebar3 eunit --sys_config config/sys.config --cover --verbose
         rebar3 cover -m 50 --verbose > x.log
         cat x.log | tee -a report.log
         rm -rf results && mkdir results
-        cp log/rvs.log results/
+        cp _build/log/rvs.log results/
         cp report.log results/
     - uses: actions/upload-artifact@v3
       with:
