@@ -34,6 +34,7 @@ run(Filename,ConfigList) ->
 	    ok
     after
 	TimeOutMain ->
+	    logger:notice("timeout main"),
 	    timeout
     end,
     timer:sleep(1000),

@@ -90,7 +90,8 @@ derive_address(Globals,Label,Key,Prefix)->
 	    logger:info("derive: ~p,~p",[Prefix,Val+Offset]),
 	    {Prefix,Val+Offset};
 	_ ->
-	    logger:error("label ~p not found in globals ~p",[Label,Globals]),
+	    logger:error("rvsmemory, derive_address: label ~p not found in globals ~p",
+			 [Label,Globals]),
 	    {error,notfound}
     end.
 

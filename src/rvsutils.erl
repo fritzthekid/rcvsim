@@ -62,7 +62,7 @@ registernames(N) ->
     %% 		end, [], lists:seq(0,N-1))++["s0","sp"].
     lists:foldl(fun(I,Acc) ->
 			Acc++["a"++integer_to_list(I)]
-		end, [], lists:seq(0,N-1))++["s0","sp"].
+		end, [], lists:seq(0,N-1))++["s0","sp","ra"].
 
 printregisters(L) ->
     printlist(lists:foldl(fun({A,B},Acc)->if B=/=0 -> Acc++[{A,B}];true->Acc end end,[],L)).
