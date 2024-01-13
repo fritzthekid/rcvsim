@@ -232,11 +232,11 @@ save_register(PIDM,Reg,Val)->
     maps:get(registers,PIDM) ! {self(),store,Reg,Val},
     TimeOut = 10,
     receive
-	{ok} -> ok
+	ok -> ok;
     after
 	TimeOut ->
 	    logger:error("rvscorehw,save_register ~p, ~p",[Reg,Val]),
-	    throw({"load_memory Reg,Val timeout",Reg,Val})
+	    throw({"save_register Reg,Val timeout",Reg,Val})
     end.
 
 load_register(PIDM,Reg)->
@@ -247,7 +247,7 @@ load_register(PIDM,Reg)->
     after
 	TimeOut ->
 	    logger:error("rvscorehw,load_register ~p",[Reg]),
-	    throw({"load_memory Reg timeout",Reg})
+	    throw({"load_register Reg timeout",Reg})
     end.
 
 save_memory(PIDM,Add,Val)->
@@ -259,7 +259,7 @@ save_memory(PIDM,Add,Val)->
     after
 	TimeOut ->
 	    logger:error("rvscorehw,save_memory ~p, ~p",[Add,Val]),
-	    throw({"load_memory Add,Val timeout",Add,Val})
+	    throw({"save_memory Add,Val timeout",Add,Val})
     end.
 
 load_memory(PIDM,Add)->
@@ -356,7 +356,8 @@ do_pat_test() ->
     ?assertException(error,badarith,do_pat(["rem","asdfc","sfd"],[17,0])).
 save_timeout_test() ->
     PID=spawn(fun()->timer:sleep(10) end),
-    ?assertException(throw,_,save_to_location(maps:from_list([{registers,PID}]),"a1",[1],#{})).
+    timer:sleep(15),
+    ?assertException(_,_,save_register(maps:from_list([{registers,PID}]),"a1",4715)).
 dump_register_test() ->
     PIDReg = spawn(rvscorehw,registers,[init,32,0]),
     PIDReg ! {self(),dump},
@@ -367,7 +368,7 @@ dump_register_test() ->
     PIDReg ! kill.
 save_and_load_register_test() ->
     PIDReg = spawn(rvscorehw,registers,[init,32,0]),
-    PIDM = maps:from_list([{registers,PIDReg}]),
+    PIDM = #{registers => PIDReg},
     save_register(PIDM,"sp",4711),
     Val = load_register(PIDM,"sp"),
     ?assertEqual(4711,Val),
