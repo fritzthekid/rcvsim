@@ -31,6 +31,7 @@ control(PIDM, Program, Defines, Data, PC) ->
     maps:get(main,PIDM) ! ok.
 
 do_operation(PIDM, Op, Defines) ->
+    logger:info("do_operation: Op ~p",[Op]),
     {Globals,Labels} = Defines,
     case hd(Op) of
 	"exit" -> 
@@ -83,7 +84,7 @@ do_op(PIDM,Op,DA,OpType,ArgsList,{Globals,Labels}) ->
     logger:debug("do_op: Op ~p",[Op]),
     Args = get_arguments(PIDM,ArgsList,Globals),
     PatResult = do_pat(Op,Args),
-    logger:notice("do_op: Op ~p, PatResult ~p, ArgsList ~p, Args ~p",[Op,PatResult,ArgsList,Args]),
+    logger:debug("do_op: Op ~p, PatResult ~p, ArgsList ~p, Args ~p",[Op,PatResult,ArgsList,Args]),
     case {PatResult,OpType} of
 	{error,_} ->
 	    logger:notice("do_op: operation ~p unknown, do nop",[Op]);
@@ -124,6 +125,8 @@ do_pat(Op,Args) ->
 	"slli" -> hd(Args) bsl get(2,Args);
 	"srai" -> hd(Args) bsr get(2,Args);
 	"lw" -> hd(Args);
+	"mv" -> hd(Args);
+	"mw" -> hd(Args);
 	"sw" -> hd(Args);
 	"beqz" -> hd(Args) =:= 0;
 	"bnez" -> hd(Args) =/= 0;
