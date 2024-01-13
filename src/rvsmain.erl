@@ -21,12 +21,10 @@ run(Filename,ConfigList) ->
     %% rvsutils:write_terms("bck/program.s",[PP]),
     %% rvsutils:write_terms("bck/defines.config",[Defines]),
     {ok, [Data]} = file:consult(ROOT ++ "/data/" ++ maps:get(dataname,Config)),
-    {ok, [OTL]} = file:consult(ROOT ++ "/src/operation-table.config"),
-    OpTab = dict:from_list(OTL),
     PIDRegs = spawn(rvscorehw, registers, [init,maps:get(registers,Config),0]),
     PIDMem =  spawn(rvsmemory, memory, [init,maps:get(memory,Config),100]),
     PIDM = maps:from_list([{registers,PIDRegs},{memory,PIDMem},{main,self()}]),
-    PIDCtrl = spawn(rvscorehw, control, [PIDM, PP, OpTab, Defines, Data, 0]),
+    PIDCtrl = spawn(rvscorehw, control, [PIDM, PP, Defines, Data, 0]),
     %%maps:fold(fun(_,V,Acc)->[V]++Acc end,[],PIDM)++[PIDCtrl].
     TimeOutMain = maps:get(timeout_main,Config),
     receive
