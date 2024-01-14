@@ -2,7 +2,7 @@
 -compile([export_all]).
 
 kill(PIDL) ->
-    lists:foreach(fun(X) -> X ! kill end, PIDL).
+    lists:foreach(fun(X) -> exit(X,kill) end, PIDL).
 
 run() ->
     run("_build/obj/simple-func.s",[]).
@@ -25,10 +25,10 @@ run(Filename,ConfigList) ->
     PIDMem =  spawn(rvsmemory, memory, [init,maps:get(memory,Config),100]),
     PIDM = maps:from_list([{registers,PIDRegs},{memory,PIDMem},{main,self()}]),
     PIDCtrl = spawn(rvscorehw, control, [PIDM, PP, Defines, Data, 0]),
-    %%maps:fold(fun(_,V,Acc)->[V]++Acc end,[],PIDM)++[PIDCtrl].
     TimeOutMain = maps:get(timeout_main,Config),
     receive
 	ok ->
+	    logger:debug("main got ok - and finishes regularily"),
 	    ok
     after
 	TimeOutMain ->
@@ -39,7 +39,11 @@ run(Filename,ConfigList) ->
     Regs = do_dump_config(PIDM,Config),
     logger:info("Config: ~p",[Config]),
     timer:sleep(100),
-    kill(maps:fold(fun(_,V,Acc) -> Acc++[V] end, [], PIDM)),
+    exit(PIDRegs,kill),exit(PIDMem,kill),
+    case is_process_alive(PIDCtrl) of
+	true -> exit(PIDCtrl,kill);
+	_ -> ok
+    end,
     SRegs = lists:sort(fun({A,_},{B,_}) -> A < B end, Regs),
     {{maps:put(main,self(),PIDM),PIDCtrl},SRegs}.
     

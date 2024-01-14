@@ -4,46 +4,53 @@
 control(PIDM, Program, Defines, Data, PC) ->
     case maps:find(PC,maps:from_list(Program)) of
 	{ok, Inst} ->
-	    do_operation(PIDM, Inst, Defines);
+	    case do_operation(PIDM, Inst, Defines) of
+		ok ->
+		    if 
+			PC >= length(Program) ->
+			    maps:get(main,PIDM) ! ok;
+			true ->
+			    control(PIDM,Program,Defines,Data,PC+1)
+		    end;
+		{ok,jump,Target} ->
+		    if
+			Target < 0 ->
+			    control(PIDM,Program,Defines,Data,PC+1);
+			true ->
+			    control(PIDM,Program,Defines,Data,Target)
+		    end;
+		{ok,exit} ->
+		    maps:get(main,PIDM) ! ok;
+		_Default ->
+		    throw({"control stops with strange end:",_Default})		    
+		end;
 	error ->
-	    do_operation(PIDM, ["nop"], Defines)
-    end,
-
-    receive
-	kill ->
-	    io:format("control killed~n",[]),
-	    ok;
-	{ok,jump,Val} ->
-	    if
-		Val < 0 ->
-		    control(PIDM,Program,Defines,Data,PC+1);
-		true ->
-		    control(PIDM,Program,Defines,Data,Val)
-	    end;
-	ok ->
+	    ok = do_operation(PIDM, ["nop"], Defines),
 	    if 
 		PC >= length(Program) ->
-		    ok;
+		    maps:get(main,PIDM) ! ok;
 		true ->
 		    control(PIDM,Program,Defines,Data,PC+1)
 	    end
-    end,
-    maps:get(main,PIDM) ! ok.
+    end.
 
+do_operation(_,["nop"],_) ->
+    logger:info("do_operation: nop, do nothing"),
+    ok;
 do_operation(PIDM, Op, Defines) ->
     logger:info("do_operation: Op ~p",[Op]),
     {Globals,Labels} = Defines,
     case hd(Op) of
 	"exit" -> 
 	    logger:notice("exit normally"),
-	    self() ! { ok, exit };
+	    { ok, exit };
 	"ret" ->
 	    logger:info("rvscorehw,do_operation: return"),
 	    do_return(PIDM,Defines);
 	"jr" ->
 	    {Globals, _} = Defines,
 	    Targets = get_arguments(PIDM,[lists:last(Op)],Globals),
-	    self() ! {ok,jump,hd(Targets)};
+	    {ok,jump,hd(Targets)};
 	"sw" ->
 	    [_|[Arg|_]] = Op,
 	    do_op(PIDM,["sw"],lists:last(Op),calcop,[Arg],{Globals,Labels});
@@ -53,12 +60,14 @@ do_operation(PIDM, Op, Defines) ->
 	    case opstype(Op) of
 		{nop,nop,nop} ->
 		    logger:notice("rvscorehw,do_operation: Op ~p unknown",[Op]),
-		    self() ! ok;
+		    ok;
 		{DA,Arguments,OpType} ->
-		    do_op(PIDM,Op,DA,OpType,Arguments,Defines)
+		    do_op(PIDM,Op,DA,OpType,Arguments,Defines);
+		_Default ->
+		    logger:error("do_operation got strange optype: ~p",[_Default]),
+		    throw({"do_operation got strange optype:",_Default})
 	    end
-    end,
-    self() ! ok.
+    end.
 
 opstype(Op) ->
     IsMCalOp=lists:member(hd(Op),["addi","add","sud","mul","rem","slli","srai",
@@ -78,8 +87,12 @@ opstype(Op) ->
     end.		     
 
 do_return(PIDM,Defines) ->
+    logger:notice("do_return"),
     do_operation(PIDM,["jr","sp"],Defines).
 
+do_op(_,["nop"],_,_,_,_) ->
+    logger:notice("rvscorehw:do_op(nop)"),
+    ok;
 do_op(PIDM,Op,DA,OpType,ArgsList,{Globals,Labels}) ->
     logger:debug("do_op: Op ~p",[Op]),
     Args = get_arguments(PIDM,ArgsList,Globals),
@@ -89,7 +102,8 @@ do_op(PIDM,Op,DA,OpType,ArgsList,{Globals,Labels}) ->
 	{error,_} ->
 	    logger:notice("do_op: operation ~p unknown, do nop",[Op]);
 	{_,calcop} -> 
-	    save_to_location(PIDM, DA, PatResult,Globals);
+	    save_to_location(PIDM, DA, PatResult,Globals),
+            ok;
 	{_,branchop} ->
 	    case maps:is_key(lists:last(Op),Labels) of
 		true ->
@@ -97,9 +111,9 @@ do_op(PIDM,Op,DA,OpType,ArgsList,{Globals,Labels}) ->
 		    logger:debug("do_op jump to ~p, ~p",[JumpTo]),
 		    case PatResult of
 			true->
-			    self() ! {ok,jump,JumpTo};
+			    {ok,jump,JumpTo};
 			false ->
-			    self() ! {ok,jump,-1};
+			    {ok,jump,-1};
 			R ->
 			    throw({"PatResult, neither true nor false:",R})
 		    end;
@@ -398,7 +412,7 @@ load_and_save_memory_test() ->
     save_memory(PIDM,17,4711),
     Val = load_memory(PIDM,17),
     ?assertEqual(4711,Val),
-    PIDMem ! kill.
+    exit(PIDMem,kill).
 opstypetest_test() ->
     ?assertEqual({"a1",[27],calcop},opstype(["lui","a1",27])),
     ?assertEqual({"a1",["a2","a3"],calcop},opstype(["mul","a1","a2","a3"])),
@@ -406,44 +420,33 @@ opstypetest_test() ->
     ?assertEqual({".L2",["a1","a2"],branchop},opstype(["bge","a1","a2",".L2"])),
     ?assertEqual({nop,nop,nop},opstype(["fritz","a1","a2",".L2"])).
 do_op_test() ->
-    TimeOut0 = 10,
-    receive
-	_R ->
-	    logger:notice("something still in pipeline ~p",[_R]),
-	    ok
-    after
-	TimeOut0 -> timeout
-    end, 
+    %% TimeOut0 = 10,
+    %% receive
+    %% 	_R ->
+    %% 	    logger:notice("something still in pipeline ~p",[_R]),
+    %% 	    ok
+    %% after
+    %% 	TimeOut0 -> timeout
+    %% end, 
     PIDReg = spawn(rvscorehw,registers,[init,32,0]),
     PIDMem = spawn(rvsmemory,memory,[init,4000,0]),
     PIDM = maps:from_list([{registers,PIDReg},{memory,PIDMem}]),
     save_register(PIDM,"a20",17),
     Globals = #{"buffer" => #{address => 400}},
-    do_op(PIDM,["li","a20","57"],"a20",calcop,[57],{Globals,#{".L3" => 57}}),
+    ok = do_op(PIDM,["li","a20","57"],"a20",calcop,[57],{Globals,#{".L3" => 57}}),
     ?assertEqual(57,load_register(PIDM,"a20")),
     save_memory(PIDM,400,123),
     ?assertEqual(123,load_memory(PIDM,400)),
-    do_op(PIDM,["addi","a21","a21","%lo(buffer)"],"a21",calcop,["a21","%lo(buffer)"],{Globals,#{".L3" => 57}}),
+    ok = do_op(PIDM,["addi","a21","a21","%lo(buffer)"],"a21",calcop,["a21","%lo(buffer)"],{Globals,#{".L3" => 57}}),
     Valaddi = load_register(PIDM,"a21"),
     ?assertEqual(400,Valaddi),
-    do_op(PIDM,["lw","a22","0(a21)"],"a22",calcop,["0(a21)"],{Globals,#{".L3" => 57}}),
+    ok = do_op(PIDM,["lw","a22","0(a21)"],"a22",calcop,["0(a21)"],{Globals,#{".L3" => 57}}),
     Vallw = load_register(PIDM,"a22"),
-    logger:notice("lw a22: Vallw ~p",[Vallw]),
-    %%?assertEqual(123,Vallw),
-    Val1=do_op(PIDM,["bltz","a20",".L3"],"a1",branchop,["a20"],{Globals,#{".L3" => 57}}),
-    TimeOut=10,
-    receive
-	R ->
-	    ?assertEqual({ok,jump,-1},R),
-	    ok
-    after
-	TimeOut -> 
-	    ?assert(false),
-	    error
-    end,
-    logger:info("blz a20: ~p",[Val1]),
-    ?assertEqual({ok,jump,-1},Val1),
-    rvsmain:kill([PIDReg,PIDMem]).
+    ?assertEqual(123,Vallw),
+    {ok,jump,Target}=
+	do_op(PIDM,["bltz","a20",".L3"],"a1",branchop,["a20"],{Globals,#{".L3" => 57}}),
+    ?assertEqual(-1,Target),
+    exit(PIDReg,kill),exit(PIDMem,kill).
 get_arguments_test() ->
     PIDReg = spawn(rvscorehw,registers,[init,32,0]),
     PIDMem = spawn(rvsmemory,memory,[init,4000,0]),
