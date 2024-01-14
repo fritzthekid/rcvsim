@@ -152,7 +152,7 @@ grep_labels(Text)->
 		    {match,_} -> II = I+1; 
 		    nomatch -> II = I
 		end,
-		case re:run(L,"\.L[0-9]+:.*") of
+		case re:run(".Lssaf:","^[\.a-zA-Z][a-zA-Z0-9_]+:") of
 		    {match,_} ->
 			[Lab|_] = string:split(L,":"),
 			{ II, Acc ++ [{Lab,I}] };
@@ -166,14 +166,15 @@ grep_labels(Text)->
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").
 globals_test() ->
-    G = globals_maps(read_text_file_as_list("_build/obj/func-with-globals.s"),"test/data/no-globals.config"),
+    rvsutils:write_terms("test/outputs/no-globals.config",[[]]),
+    G = globals_maps(read_text_file_as_list("_build/obj/func-with-globals.s"),"test/outputs/no-globals.config"),
     ?assertEqual("4000",maps:get(size,maps:get("buffer",G))),
     ok.
 labels_test() ->
-    Text = ["bla","fritz","\tload 100", "\tsw a5,100",
-	    ".L7:","\tfasdaf",".asfd","asdfasfd","\tasdf",".L17:"],
+    Text = ["bla","fri_tz","sdfgs_f3dg:","\tload 100", "\tsw a5,100",
+	    ".L7:","\tfas2daf",".as2fd","3asdfasfd","\tasdf",".L17:"],
     Labels = maps:from_list(grep_labels(Text)),
-    ?assertEqual(2,length(maps:keys(Labels))),
+    ?assertEqual(11,length(maps:keys(Labels))),
     ?assertEqual(4,maps:get(".L17",Labels)),
     ?assertEqual(error,maps:find(".L8",Labels)),
     ?assertException(error,_,maps:get("asfd",Labels)).

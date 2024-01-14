@@ -2,7 +2,7 @@
 -compile([export_all]).
 
 kill(PIDL) ->
-    lists:foreach(fun(X) -> X ! kill end, PIDL).
+    lists:foreach(fun(X) -> exit(X,kill) end, PIDL).
 
 run() ->
     run("_build/obj/simple-func.s",[]).
@@ -21,26 +21,29 @@ run(Filename,ConfigList) ->
     %% rvsutils:write_terms("bck/program.s",[PP]),
     %% rvsutils:write_terms("bck/defines.config",[Defines]),
     {ok, [Data]} = file:consult(ROOT ++ "/data/" ++ maps:get(dataname,Config)),
-    {ok, [OTL]} = file:consult(ROOT ++ "/src/operation-table.config"),
-    OpTab = dict:from_list(OTL),
     PIDRegs = spawn(rvscorehw, registers, [init,maps:get(registers,Config),0]),
     PIDMem =  spawn(rvsmemory, memory, [init,maps:get(memory,Config),100]),
     PIDM = maps:from_list([{registers,PIDRegs},{memory,PIDMem},{main,self()}]),
-    PIDCtrl = spawn(rvscorehw, control, [PIDM, PP, OpTab, Defines, Data, 0]),
-    %%maps:fold(fun(_,V,Acc)->[V]++Acc end,[],PIDM)++[PIDCtrl].
+    PIDCtrl = spawn(rvscorehw, control, [PIDM, PP, Defines, Data, 0]),
     TimeOutMain = maps:get(timeout_main,Config),
     receive
 	ok ->
+	    logger:debug("main got ok - and finishes regularily"),
 	    ok
     after
 	TimeOutMain ->
+	    logger:notice("timeout main"),
 	    timeout
     end,
     timer:sleep(1000),
     Regs = do_dump_config(PIDM,Config),
     logger:info("Config: ~p",[Config]),
     timer:sleep(100),
-    kill(maps:fold(fun(_,V,Acc) -> Acc++[V] end, [], PIDM)),
+    exit(PIDRegs,kill),exit(PIDMem,kill),
+    case is_process_alive(PIDCtrl) of
+	true -> exit(PIDCtrl,kill);
+	_ -> ok
+    end,
     SRegs = lists:sort(fun({A,_},{B,_}) -> A < B end, Regs),
     {{maps:put(main,self(),PIDM),PIDCtrl},SRegs}.
     
@@ -107,7 +110,7 @@ rvsmain_dump_register_and_timeout_dump_memory_test() ->
     PIDRegs = spawn(rvscorehw, registers, [init,32,17]),
     Regs = dump_registers(maps:from_list([{registers,PIDRegs}])),
     ?assertEqual(17,maps:get("a15",maps:from_list(Regs))),
-    ?assertEqual(34,length(Regs)),
+    ?assertEqual(35,length(Regs)),
     kill([PIDRegs]),
     ?assertEqual(timeout,dump_registers(maps:from_list([{registers,PIDRegs}]))),
     ?assertEqual(timeout,dump_memory(maps:from_list([{memory,PIDRegs}]),400,404)).
