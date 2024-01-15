@@ -64,8 +64,6 @@ do_operation(PIDM, Op, Defines,PC) ->
 	"sw" ->
 	    [_|[Arg|_]] = Op,
 	    do_op(PIDM,["sw"],lists:last(Op),calcop,[Arg],Defines);
-	"nop" ->
-	    ok;
 	_ ->
 	    case opstype(Op) of
 		{nop,nop,nop} ->
@@ -199,20 +197,6 @@ get_arguments(PIDM,LL,Globals) ->
 				Acc++[error]
 			end
 		end, [],LL).
-				
-%% get_register(PIDM, Name) ->
-%%     logger:debug("get register: ~p",[Name]),
-%%     maps:get(registers,PIDM) ! {self(),load,Name},
-%%     TimeOutLoad = 100,
-%%     receive
-%% 	{ok,Val} ->
-%% 	    logger:debug("get register: ~p: ~p",[Name,Val]),
-%% 	    Val
-%%     after
-%% 	TimeOutLoad ->
-%% 	    logger:error("get register failed: ~p: Timeout",[Name]),
-%% 	    timeout
-%%     end.
 
 save_to_location(PIDM, DA, Val,Globals) ->
     logger:info("save to location ~p,~p",[DA,Val]),
@@ -459,4 +443,8 @@ do_op_failures_test() ->
     ok = do_op(#{},["fritz","7","4"],"4",calcop,["7"],{#{},{}}),
     ?assertException(throw,_,do_op(#{},["bge","7","3",".L3"],".L3",branchop,["7","3"],{#{},#{}})),
     ok = do_op(#{},["nop"],"nop",calcop,[],{}).
+do_operation_dummy_test()->
+    ok = do_operation(#{},["fritz"],{#{},{}},0).
+do_save_to_location_test()->
+    ok=save_to_location(#{},"fi%(fritz)",0,#{"fritz" => #{address => 7}}).
 -endif.
