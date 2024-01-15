@@ -4,7 +4,7 @@
 control(PIDM, Program, Defines, Data, PC) ->
     case maps:find(PC,maps:from_list(Program)) of
 	{ok, Inst} ->
-	    case do_operation(PIDM, Inst, Defines) of
+	    case do_operation(PIDM, Inst, Defines, PC) of
 		ok ->
 		    if 
 			PC >= length(Program) ->
@@ -25,7 +25,7 @@ control(PIDM, Program, Defines, Data, PC) ->
 		    throw({"control stops with strange end:",_Default})		    
 		end;
 	error ->
-	    ok = do_operation(PIDM, ["nop"], Defines),
+	    ok = do_operation(PIDM, ["nop"], Defines, PC),
 	    if 
 		PC >= length(Program) ->
 		    maps:get(main,PIDM) ! ok;
@@ -34,10 +34,10 @@ control(PIDM, Program, Defines, Data, PC) ->
 	    end
     end.
 
-do_operation(_,["nop"],_) ->
+do_operation(_,["nop"],_,_) ->
     logger:info("do_operation: nop, do nothing"),
     ok;
-do_operation(PIDM, Op, Defines) ->
+do_operation(PIDM, Op, Defines,PC) ->
     logger:info("do_operation: Op ~p",[Op]),
     {Globals,Labels} = Defines,
     case hd(Op) of
@@ -46,20 +46,24 @@ do_operation(PIDM, Op, Defines) ->
 	    { ok, exit };
 	"ret" ->
 	    logger:info("rvscorehw,do_operation: return"),
-	    do_return(PIDM,Defines);
-	"jr" ->
-	    Target = get_arguments(PIDM,[lists:last(Op)],Globals),
-	    logger:info("rvscorehw do_operation: jump target ~p ~p",[hd(Op),Target]),
+	    do_return(PIDM,Defines,PC);
+	"jr" -> %% jump register
+	    Targets = get_arguments(PIDM,[lists:last(Op)],Globals),
+	    logger:info("rvscorehw do_operation: jump target ~p ~p",[hd(Op),hd(Targets)]),
 	    %%Target = lists:last(Op),
-	    {ok,jump,maps:get(Target,Labels,-1)};
-	"j" ->
+	    {ok,jump,hd(Targets)}; %%maps:get(Target,Labels,-1)};
+	"j" -> %% jump label
 	    %%Target = get_arguments(PIDM,[lists:last(Op)],Globals),
 	    Target = lists:last(Op),
 	    logger:info("rvscorehw do_operation: jump target ~p num ~p",[Target,maps:get(Target,Labels,"not_found")]),
 	    {ok,jump,maps:get(Target,Labels,-1)};
+	"call" ->
+	    ok = save_register(PIDM,"ra",PC+1),
+	    Target = maps:get(lists:last(Op),Labels),
+	    {ok,jump,Target};
 	"sw" ->
 	    [_|[Arg|_]] = Op,
-	    do_op(PIDM,["sw"],lists:last(Op),calcop,[Arg],{Globals,Labels});
+	    do_op(PIDM,["sw"],lists:last(Op),calcop,[Arg],Defines);
 	"nop" ->
 	    ok;
 	_ ->
@@ -92,9 +96,9 @@ opstype(Op) ->
 	    {nop,nop,nop}
     end.		     
 
-do_return(PIDM,Defines) ->
+do_return(PIDM,Defines,PC) ->
     logger:notice("do_return"),
-    do_operation(PIDM,["jr","sp"],Defines).
+    do_operation(PIDM,["jr","ra"],Defines,PC).
 
 do_op(_,["nop"],_,_,_,_) ->
     logger:notice("rvscorehw:do_op(nop)"),

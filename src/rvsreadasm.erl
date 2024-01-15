@@ -24,11 +24,9 @@ read_text_file_as_list(Filename) ->
 split_labels_code(Text) ->
     lists:foldl(fun split_line_labels_code/2,{0,[],[]},Text).
 split_line_labels_code(L,{I,Labs,Code}) ->
-    logger:debug("slc: ~p,~p,~p,~p",[L,I,Labs,Code]),
     IsLabel = re:run(L,"^[\.a-zA-Z][a-zA-Z0-9_]+:"),
     IsCode = re:run(L,"^\t[a-z].*"),
     IsDirective = re:run(L,"^\t[\.].*"),
-    logger:info("~p, ~p,~p,~p",[L,IsLabel,IsCode,IsDirective]),
     case {IsLabel,IsCode,IsDirective} of
 	{nomatch,nomatch,{match,_}} ->
 	    {I,Labs,Code};
