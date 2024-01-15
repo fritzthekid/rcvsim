@@ -14,10 +14,7 @@ run(Filename,ConfigList) ->
     Config = lists:foldl(fun({X,Y},Map) -> maps:put(X,Y,Map) 
 			 end, RawConfig,ConfigList++[{programname,Filename}]),
     %% rvsutils:write_terms("bck/config.cfg",[Config]),
-    {[_|P],Defines} = rvsreadasm:readasm(maps:get(programname,Config)),
-    PP =  element(2,lists:foldl(fun(X,{I,Acc}) -> 
-				       {I+1, Acc++[{I,tuple_to_list(X)}]} 
-			       end, {0, []}, program_to_strings(P))),
+    {PP,Defines} = rvsreadasm:readasm(maps:get(programname,Config)),
     rvsutils:write_terms("bck/program.s",[PP]),
     rvsutils:write_terms("bck/globals_labels.config",[Defines]),
     rvsutils:write_terms("bck/program.s",[PP]),

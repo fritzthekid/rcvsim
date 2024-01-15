@@ -5,29 +5,6 @@ readasm(Filename) ->
     Text = remove_comment(read_text_file_as_list(Filename)),
     rvsutils:write_terms("bck/rawprog_as_list.s",Text),
     Globals = globals_maps(Text,"data/global-address-list.config"),
-    %%{_,NText} = lists:foldl(fun(L,{I,Acc})->{I+1,Acc+[{I,L}]} end,{0,[]},Text),
-    %% Labels = maps:from_list(grep_labels(Text)),
-    %% T = lists:foldl(fun(L,Acc) -> if length(L) > 0 ->
-    %% 					  case hd(L) of
-    %% 					      9 -> Acc ++ [L];
-    %% 					      _ -> Acc
-    %% 					  end;
-    %% 				     true -> Acc
-    %% 				  end
-    %% 		    end,[],Text),
-    %% TT = lists:foldl(fun(L,Acc) -> Acc++string:strip(string:replace(L,"\t"," ")) end,[],T),
-    %% { lists:foldl(fun(L,Acc) -> Len=length(string:strip(L)),
-    %% 				   if Len > 0 -> 
-    %% 					   Is = (hd(string:strip(L)) =/= 46),
-    %% 					   if
-    %% 					       Is ->
-    %% 						   Acc++[do_line(L)];
-    %% 					       true ->
-    %% 						   Acc
-    %% 					   end;
-    %% 				      true -> Acc
-    %% 				   end
-    %% 		q     end, [],TT), { Globals, Labels } }.
     {_,Labs,Code} = split_labels_code(Text),
     {Code,{Globals,maps:from_list(Labs)}}.
 
@@ -145,7 +122,7 @@ do_clean_line(L) ->
 		    {_,_} -> Acc++[S]
 		end
 	end,
-    list_to_tuple(lists:foldl(F,[],LLLL)).
+    lists:foldl(F,[],LLLL).
 
 grep_globals(Text) ->
     lists:foldl(fun(Line,Acc) ->
