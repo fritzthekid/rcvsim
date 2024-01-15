@@ -14,10 +14,10 @@ read_text_file_as_list(Filename) ->
 		       string:split(binary:bin_to_list(Bin),"\n",all);
 		   {error,enoent} ->
 		       logger:error("File not found, ~p",[Filename]),
-		       [error];
+		       [error,error];
 		   {error,Reason} ->
 		       logger:error("Error: ~p, ~p",[Reason,Filename]),
-		       [error]
+		       [error,error]
 	       end,
     Text.
 
@@ -177,10 +177,18 @@ list_text_test() ->
     Text = read_text_file_as_list("_build/obj/func-with-globals.s"),
     ?assertEqual(19,length(list_text(Text,3,22))),
     print_text(Text).
+read_text_file_test() ->
+    [error] = read_text_file_as_list("test/x/somefile").
 globals_maps_test() ->
     GM = globals_maps(read_text_file_as_list("_build/obj/func-with-globals.s"),
 		     "test/data/no-globals.config"),
     GX = globals_maps(read_text_file_as_list("_build/obj/func-with-globals.s"),
 		      "test/x/somefile"),
     ?assert(GM==GX).
+do_line_test()->
+    ?assertEqual(["nop"],do_line("\tnop")),
+    ?assertEqual(["nop"],do_line("nop")),
+    ?assertEqual(["nop","nop"],do_line("\tnop   nop")),
+    ?assertEqual(["nop","nop"],do_line("\tnop\t   nop")),
+    ok.
 -endif.

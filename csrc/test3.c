@@ -1,17 +1,19 @@
 #include <stdint-gcc.h>
+#ifdef WITHMAIN
+#include <sdtio.h>
+#endif
 
-// asm (".globl _start\n\t"
-//     "_start:\n\t"
+#ifndef WITHMAIN  
 asm (".text\n.start:\n\t"
-     "nop\n\t"
+     "li sp,200\n\t"
      "j  loader\n\t");
+#endif
 
 int32_t main(void);
 
 #ifndef WITHMAIN  
 void __attribute__ ((noinline)) loader(void) {
-  asm ("li sp,100\n\t"
-       "li s0,200\n\t"
+  asm ("li s0,100\n\t"
        "li a20,400\n\t"
        "li a21,17\n\t"
        "sw a21,0(a20)\n\t"
@@ -36,5 +38,8 @@ int32_t __attribute__ ((noinline)) main(void) {
   int32_t retval;
   retval = myfunc(buffer[0],buffer[1],buffer[2],&buffer[3]);
   retval = retval*retval;
+#ifdef WITHMAIN
+  printf("",buffer[0],buffer[1],buffer[2],buffer[3]);
+#endif
   return retval;
 }

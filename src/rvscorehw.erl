@@ -347,16 +347,6 @@ registers(Registers) ->
 	    timeout
     end.
 
-do_op_test1() ->
-    PIDReg = spawn(rvscorehw,registers,[init,32,0]),
-    PIDM = maps:from_list([{registers,PIDReg}]),
-    save_register(PIDM,"a20",17),
-    do_op(PIDM,["li","a20","57"],"a20",calcop,[57],{#{},#{".L3" => 57}}),
-    Val = load_register(PIDM,"a20"),
-    logger:notice("a20: ~p",[Val]),
-    %%?assertEqual(6,do_op(PIDM,["blz","a20",".L3"],"a1",branchop,["a20"],{#{},#{".L3" => 57}}})),
-    rvsmain:kill([PIDReg]).
-
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").
 store_load_register_test() ->
@@ -428,16 +418,7 @@ opstypetest_test() ->
     ?assertEqual({"a1",["a2","a3"],calcop},opstype(["mul","a1","a2","a3"])),
     ?assertEqual({".L3",["a1"],branchop},opstype(["bnez","a1",".L3"])),
     ?assertEqual({".L2",["a1","a2"],branchop},opstype(["bge","a1","a2",".L2"])),
-    ?assertEqual({nop,nop,nop},opstype(["fritz","a1","a2",".L2"])).
-do_op_test() ->
-    %% TimeOut0 = 10,
-    %% receive
-    %% 	_R ->
-    %% 	    logger:notice("something still in pipeline ~p",[_R]),
-    %% 	    ok
-    %% after
-    %% 	TimeOut0 -> timeout
-    %% end, 
+    ?assertEqual({nop,nop,nop},opstype(["fritz","a1","a2",".L2"])),
     PIDReg = spawn(rvscorehw,registers,[init,32,0]),
     PIDMem = spawn(rvsmemory,memory,[init,4000,0]),
     PIDM = maps:from_list([{registers,PIDReg},{memory,PIDMem}]),
@@ -469,12 +450,13 @@ get_arguments_test() ->
     ?assertEqual([127,412],Args),
     rvsmain:kill([PIDReg,PIDMem]),
     ok.
-%% do_op_test() ->
-%%     PIDReg = spawn(rvscorehw,registers,[init,32,0]),
-%%     PIDM = maps:from_list([{registers,PIDReg}]),
-%%     do_op(PIDM,["li","a20","57"],"a20",calcop,[57],{#{},#{".L3" => 57}}),
-%%     ?assertEqual(57,load_register(PIDM,"a20")),
-%%     save_register(PIDM,"a20",17),
-%%     %%?assertEqual(6,do_op(PIDM,["blz","a20",".L3"],"a1",branchop,["a20"],{#{},#{".L3" => 57}}})),
-%%     rvsmain:kill([PIDReg]).
+control_failure_test() ->
+    PID = spawn(fun() -> ok end),
+    control(#{main => PID},[],{},[],1),
+    control(#{main => PID},[{0,["nop"]},{2,["nop"]}],{},[],1),
+    ok.
+do_op_failures_test() ->
+    ok = do_op(#{},["fritz","7","4"],"4",calcop,["7"],{#{},{}}),
+    ?assertException(throw,_,do_op(#{},["bge","7","3",".L3"],".L3",branchop,["7","3"],{#{},#{}})),
+    ok = do_op(#{},["nop"],"nop",calcop,[],{}).
 -endif.

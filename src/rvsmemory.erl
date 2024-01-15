@@ -97,44 +97,37 @@ derive_address(Globals,Label,Key,Prefix)->
 
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").
-%% get_globals() ->
-%%     Globals = maps:from_list([{"buffer",maps:from_list([{address,500}])},
-%%     			      {"some",maps:from_list([{type,"function"}])}]),
-%%     Globals.
-%% derive_address_test() ->
-%%     Globals = get_globals(),
-%% %maps:from_list([{"buffer",maps:from_list([{address,4000}])},
-%% %    			      {"some",maps:from_list([{type,"function"}])}]),
-%%     Res = derive_address(maps:new(),Globals,"%hi(buffer)"),
-%%     ?assertEqual(0,Res),
-%%     Res = derive_address(maps:new(),Globals,"%lo(buffer)"),
-%%     ?assertEqual(0,500),
-%%     ?assertEqual({error,notfound},derive_address(maps:new(),Globals,"40(bufferx)")),
-%%     ?assertEqual({error,notfound},derive_address(maps:new(),Globals,"40(some)")),
-%%     ok.
-%% store_load_memory_test() ->
-%%     Globals = get_globals(),
-%%     PIDReg = spawn(rvsmemory,memory,[init,1000,0]),
-%%     PIDReg ! {self(),store,derive_address(maps:new(),Globals,"40(buffer)"),5},
-%%     TimeOut = 1200,
-%%     receive
-%% 	ok ->
-%% 	    ok
-%%     after
-%% 	TimeOut ->
-%% 	    ?assert(false)
-%%     end,
-%%     logger:info("store success",[]),
-%%     PIDReg ! {self(),load,derive_address(maps:new(),Globals,"40(buffer)")},
-%%     receive
-%% 	{ok,Val} ->
-%% 	    ?assertEqual(5,Val),
-%% 	    logger:info("load succes ~p",[Val])
-%%     after
-%% 	TimeOut ->
-%% 	    logger:info("load timeout",[]),
-%% 	    ?assert(false)
-%%     end.
+memory_access_test() ->
+    TimeOutDummy = 10,
+    receive
+	_ -> ok
+    after
+	TimeOutDummy ->
+	    ok
+    end,
+    PIDMem = spawn(rvsmemory,memory,[init,40,0]),
+    PIDMem ! {self(), load, -1 },
+    TimeOut = 100,
+    receive
+	{ok,0} -> ?assert(true),ok;
+	_ -> ?assert(false)
+    after
+	TimeOut ->
+	    ?assert(false),
+	    ok
+    end,
+    PIDMem ! {self(), load, 44 },
+    TimeOut1 = 100,
+    receive
+	{ok,0} -> ?assert(true),ok;
+	_ -> ?assert(false)
+    after
+	TimeOut1 ->
+	    ?assert(false)
+    end,
+    PIDSelf = spawn(fun() -> ok end),
+    PIDMem ! {PIDSelf,store,-1,17},
+    exit(PIDMem,kill).
 dump_memory_test() ->
     PIDReg = spawn(rvsmemory,memory,[init,40,0]),
     PIDReg ! {self(),dump},
