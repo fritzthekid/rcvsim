@@ -168,24 +168,6 @@ type_of_globals(OAcc,[G|T],Text) ->
 		       end, OAcc,Text),
     type_of_globals(NAcc,T,Text).
 
-grep_labels(Text)->
-    F = fun(L,{I,Acc}) ->
-		case re:run(L,"^\t[a-z]+.*") of
-		    {match,_} -> II = I+1; 
-		    nomatch -> II = I
-		end,
-		%%case re:run(".Lssaf:","^[\.a-zA-Z][a-zA-Z0-9_]+:") of
-		case re:run(L,"^[\.a-zA-Z][a-zA-Z0-9_]+:") of
-		    {match,_} ->
-			[Lab|_] = string:split(L,":"),
-			{ II, Acc ++ [{Lab,I-1}] }; %% !!!!!!!!!!! Labels sind nicht korrekt!! %%
-
-		    nomatch -> { II, Acc }
-		end
-	end,
-    {_,Labels} = lists:foldl(F,{0,[]},Text),
-    Labels.
-
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").
 globals_test() ->
@@ -193,14 +175,6 @@ globals_test() ->
     G = globals_maps(read_text_file_as_list("_build/obj/func-with-globals.s"),"test/outputs/no-globals.config"),
     ?assertEqual("4000",maps:get(size,maps:get("buffer",G))),
     ok.
-labels_test() ->
-    Text = ["bla","fri_tz","sdfgs_f3dg:","\tload 100", "\tsw a5,100",
-	    ".L7:","\tfas2daf",".as2fd","3asdfasfd","\tasdf",".L17:"],
-    Labels = maps:from_list(grep_labels(Text)),
-    ?assertEqual(11,length(maps:keys(Labels))),
-    ?assertEqual(4,maps:get(".L17",Labels)),
-    ?assertEqual(error,maps:find(".L8",Labels)),
-    ?assertException(error,_,maps:get("asfd",Labels)).
 list_text_test() ->
     Text = read_text_file_as_list("_build/obj/func-with-globals.s"),
     ?assertEqual(19,length(list_text(Text,3,22))),
