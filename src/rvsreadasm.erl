@@ -5,20 +5,31 @@ readasm(Filename) ->
     Text = remove_comment(read_text_file_as_list(Filename)),
     rvsutils:write_terms("bck/rawprog_as_list.s",Text),
     Globals = globals_maps(Text,"data/global-address-list.config"),
-    Labels = maps:from_list(grep_labels(Text)),
-    TT = lists:foldl(fun(L,Acc) -> Acc++string:strip(string:replace(L,"\t"," ")) end,[],Text),
-    { lists:foldl(fun(L,Acc) -> Len=length(string:strip(L)), 
-				   if Len > 0 -> 
-					   Is = (hd(string:strip(L)) =/= 46),
-					   if
-					       Is ->
-						   Acc++[do_line(L)];
-					       true ->
-						   Acc
-					   end;
-				      true -> Acc
-				   end
-		     end, [],TT), { Globals, Labels } }.
+    %%{_,NText} = lists:foldl(fun(L,{I,Acc})->{I+1,Acc+[{I,L}]} end,{0,[]},Text),
+    %% Labels = maps:from_list(grep_labels(Text)),
+    %% T = lists:foldl(fun(L,Acc) -> if length(L) > 0 ->
+    %% 					  case hd(L) of
+    %% 					      9 -> Acc ++ [L];
+    %% 					      _ -> Acc
+    %% 					  end;
+    %% 				     true -> Acc
+    %% 				  end
+    %% 		    end,[],Text),
+    %% TT = lists:foldl(fun(L,Acc) -> Acc++string:strip(string:replace(L,"\t"," ")) end,[],T),
+    %% { lists:foldl(fun(L,Acc) -> Len=length(string:strip(L)),
+    %% 				   if Len > 0 -> 
+    %% 					   Is = (hd(string:strip(L)) =/= 46),
+    %% 					   if
+    %% 					       Is ->
+    %% 						   Acc++[do_line(L)];
+    %% 					       true ->
+    %% 						   Acc
+    %% 					   end;
+    %% 				      true -> Acc
+    %% 				   end
+    %% 		q     end, [],TT), { Globals, Labels } }.
+    {_,Labs,Code} = split_labels_code(Text),
+    {Code,{Globals,maps:from_list(Labs)}}.
 
 read_text_file_as_list(Filename) ->
     [_|Text] = case file:read_file(Filename) of
@@ -32,6 +43,26 @@ read_text_file_as_list(Filename) ->
 		       [error]
 	       end,
     Text.
+
+split_labels_code(Text) ->
+    lists:foldl(fun split_line_labels_code/2,{0,[],[]},Text).
+split_line_labels_code(L,{I,Labs,Code}) ->
+    logger:debug("slc: ~p,~p,~p,~p",[L,I,Labs,Code]),
+    IsLabel = re:run(L,"^[\.a-zA-Z][a-zA-Z0-9_]+:"),
+    IsCode = re:run(L,"^\t[a-z].*"),
+    IsDirective = re:run(L,"^\t[\.].*"),
+    logger:info("~p, ~p,~p,~p",[L,IsLabel,IsCode,IsDirective]),
+    case {IsLabel,IsCode,IsDirective} of
+	{nomatch,nomatch,{match,_}} ->
+	    {I,Labs,Code};
+	{nomatch,{match,_},nomatch} ->
+	    {I+1,Labs,Code++[{I,do_line(L)}]};
+	{{match,_},nomatch,nomatch} ->
+	    {I,Labs++[{hd(string:split(L,":")),I}],Code};
+	_Default ->
+	    logger:info("line no directive or code or comment: ~p",[L]),
+	    {I,Labs,Code}
+    end.
 
 remove_comment(Text) ->
     [H|T] = Text,
@@ -90,7 +121,21 @@ list_text(Text,A,E) ->
 		end, [],lists:zip(lists:seq(1,length(Text)),Text)).
 
 do_line(L) ->
-    LL=string:split(string:replace(L,"\t"," "),",",all),
+    case hd(L) of
+	9 ->
+	    [_|T] = L;
+	_ ->
+	    T=L
+    end,
+    case re:run(T,"\t") of
+	nomatch ->
+	    do_clean_line(string:strip(T));
+	_ ->
+	    do_clean_line(string:strip(string:replace(T,"\t"," ",all)))
+    end.
+do_clean_line(L) ->
+    logger:debug("clean line: ~p",[L]),
+    LL=string:split(L,",",all),
     LLL=lists:foldl(fun(S,Acc)->Acc++string:split(S," ") end,[],LL),
     LLLL=lists:foldl(fun(S,Acc)->Acc++[string:strip(S)] end,[],LLL),
     F = fun(S,Acc) ->
@@ -152,10 +197,11 @@ grep_labels(Text)->
 		    {match,_} -> II = I+1; 
 		    nomatch -> II = I
 		end,
-		case re:run(".Lssaf:","^[\.a-zA-Z][a-zA-Z0-9_]+:") of
+		%%case re:run(".Lssaf:","^[\.a-zA-Z][a-zA-Z0-9_]+:") of
+		case re:run(L,"^[\.a-zA-Z][a-zA-Z0-9_]+:") of
 		    {match,_} ->
 			[Lab|_] = string:split(L,":"),
-			{ II, Acc ++ [{Lab,I}] };
+			{ II, Acc ++ [{Lab,I-1}] }; %% !!!!!!!!!!! Labels sind nicht korrekt!! %%
 
 		    nomatch -> { II, Acc }
 		end

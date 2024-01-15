@@ -48,9 +48,15 @@ do_operation(PIDM, Op, Defines) ->
 	    logger:info("rvscorehw,do_operation: return"),
 	    do_return(PIDM,Defines);
 	"jr" ->
-	    {Globals, _} = Defines,
-	    Targets = get_arguments(PIDM,[lists:last(Op)],Globals),
-	    {ok,jump,hd(Targets)};
+	    Target = get_arguments(PIDM,[lists:last(Op)],Globals),
+	    logger:info("rvscorehw do_operation: jump target ~p ~p",[hd(Op),Target]),
+	    %%Target = lists:last(Op),
+	    {ok,jump,maps:get(Target,Labels,-1)};
+	"j" ->
+	    %%Target = get_arguments(PIDM,[lists:last(Op)],Globals),
+	    Target = lists:last(Op),
+	    logger:info("rvscorehw do_operation: jump target ~p num ~p",[Target,maps:get(Target,Labels,"not_found")]),
+	    {ok,jump,maps:get(Target,Labels,-1)};
 	"sw" ->
 	    [_|[Arg|_]] = Op,
 	    do_op(PIDM,["sw"],lists:last(Op),calcop,[Arg],{Globals,Labels});

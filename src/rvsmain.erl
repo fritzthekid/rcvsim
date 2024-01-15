@@ -18,7 +18,9 @@ run(Filename,ConfigList) ->
     PP =  element(2,lists:foldl(fun(X,{I,Acc}) -> 
 				       {I+1, Acc++[{I,tuple_to_list(X)}]} 
 			       end, {0, []}, program_to_strings(P))),
-    %% rvsutils:write_terms("bck/program.s",[PP]),
+    rvsutils:write_terms("bck/program.s",[PP]),
+    rvsutils:write_terms("bck/globals_labels.config",[Defines]),
+    rvsutils:write_terms("bck/program.s",[PP]),
     %% rvsutils:write_terms("bck/defines.config",[Defines]),
     {ok, [Data]} = file:consult(ROOT ++ "/data/" ++ maps:get(dataname,Config)),
     PIDRegs = spawn(rvscorehw, registers, [init,maps:get(registers,Config),0]),
