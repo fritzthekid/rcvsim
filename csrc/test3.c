@@ -22,12 +22,17 @@ void __attribute__ ((noinline)) loader(void) {
        "li a21,5\n\t"
        "sw a21,8(a20)\n\t");
   main();
-  asm ("nop\n\t"
-       "exit\n\t");
+  asm ("exit\n\t");
 }
 #endif
   
 int32_t buffer[4000];
+
+#ifndef WITHMAIN
+asm (".text\n\t"
+     ".globl\tbuffer\n\t"
+     ".addr\tbuffer, 400\n\t");
+#endif
 
 int32_t __attribute__ ((noinline)) myfunc(int32_t e, int32_t f, int32_t g, int32_t out[]) {
   out[0] = (e * f) + g;

@@ -2,7 +2,10 @@
 
 int32_t buffer[1000];
 
-#ifndef WITHMAIN  
+#ifndef WITHMAIN
+asm (".text\n\t"
+     ".globl\tbuffer\n\t"
+     ".addr\tbuffer, 400\n\t");
 asm (".text\n.start:\n\t"
      "nop\n\t"
      "j  loader\n\t");

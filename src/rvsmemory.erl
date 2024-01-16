@@ -52,6 +52,7 @@ memory(Memory) ->
     end.
 
 derive_address(PIDM,Globals,Code) ->
+    logger:info("derive_address: Globals: ~p",[Globals]),
     L = if 
 	    Code =:= "zero" ->
 		logger:info("!!!! derive_address zero"),
@@ -82,7 +83,7 @@ derive_address(PIDM,Globals,Code) ->
 		    timeout
 	    end;
 	{_,"zero"} -> 0;
-	{_,_} -> derive_address(Globals,Label,address,Prefix)
+	{_,_} -> derive_address(Globals,Label,addr,Prefix)
     end.
 
 derive_address(Globals,Label,Key,Prefix)->
@@ -94,7 +95,7 @@ derive_address(Globals,Label,Key,Prefix)->
     end,
     case lists:member(Lab,maps:keys(Globals)) of
         true ->
-	    Val = maps:get(Key,maps:get(Lab,Globals)),
+	    Val = make_it_integer(maps:get(Key,maps:get(Lab,Globals))),
 	    logger:info("derive: ~p,~p",[Prefix,Val+Offset]),
 	    {Prefix,Val+Offset};
 	_ ->
@@ -102,6 +103,18 @@ derive_address(Globals,Label,Key,Prefix)->
 			 [Label,Globals]),
 	    throw({"label not found in globals",Label})
     end.
+
+make_it_integer(Val) ->
+    if 
+	is_integer(Val) ->
+	    Val;
+	true ->
+	    case string:to_integer(Val) of
+		{error,_} -> throw({"rvsmemory,make_integer: but it is not an integer",Val});
+		{Res,[]} -> Res;
+		_Default -> throw({"rvsmemory,make_integer: strange",_Default,Val})
+	    end
+    end.		    		    
 
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").

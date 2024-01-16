@@ -4,6 +4,7 @@ extern int32_t buffer[];
 
 #ifndef WITHMAIN
 asm (".text\n\t"
+     ".globl\tbuffer\n\t"
      ".addr\tbuffer, 400\n\t");
 #endif
 

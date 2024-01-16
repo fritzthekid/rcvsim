@@ -9,6 +9,12 @@ asm (".text\n.start:\n\t"
 
 int32_t load_add_store();
 
+#ifndef WITHMAIN
+asm (".text\n\t"
+     ".globl\tbuffer\n\t"
+     ".addr\tbuffer, 400\n\t");
+#endif
+
 #ifndef WITHMAIN  
 void __attribute__ ((noinline)) loader(void) {
   asm ("li sp,100\n\t"

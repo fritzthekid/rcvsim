@@ -2,6 +2,12 @@
 
 extern int32_t buffer[];
 
+#ifndef WITHMAIN
+asm (".text\n\t"
+     ".globl\tbuffer\n\t"
+     ".addr\tbuffer, 400\n\t");
+#endif
+
 asm (".text\n.start:\n\t"
      "nop\n\t"
      "j  loader\n\t");

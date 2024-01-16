@@ -408,7 +408,7 @@ opstypetest_test() ->
     PIDMem = spawn(rvsmemory,memory,[init,4000,0]),
     PIDM = maps:from_list([{registers,PIDReg},{memory,PIDMem}]),
     save_register(PIDM,"a20",17),
-    Globals = #{"buffer" => #{address => 400}},
+    Globals = #{"buffer" => #{addr => 400}},
     ok = do_op(PIDM,["li","a20","57"],"a20",calcop,[57],{Globals,#{".L3" => 57}}),
     ?assertEqual(57,load_register(PIDM,"a20")),
     save_memory(PIDM,400,123),
@@ -428,7 +428,7 @@ get_arguments_test() ->
     PIDMem = spawn(rvsmemory,memory,[init,4000,0]),
     PIDM = maps:from_list([{registers,PIDReg},{memory,PIDMem}]),
     save_memory(PIDM,400,127),
-    Globals = #{"buffer" => #{address => 400}},
+    Globals = #{"buffer" => #{addr => 400}},
     save_register(PIDM,"a21",400),
     ?assertEqual(400,load_register(PIDM,"a21")),
     Args = get_arguments(PIDM,["0(a21)","%lo(buffer+12)"],Globals),
@@ -447,5 +447,5 @@ do_op_failures_test() ->
 do_operation_dummy_test()->
     ok = do_operation(#{},["fritz"],{#{},{}},0).
 do_save_to_location_test()->
-    ok=save_to_location(#{},"fi%(fritz)",0,#{"fritz" => #{address => 7}}).
+    ok=save_to_location(#{},"fi%(fritz)",0,#{"fritz" => #{addr => 7}}).
 -endif.

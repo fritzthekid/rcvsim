@@ -152,7 +152,6 @@ prop_of_globals(OAcc,[G|T],Text,Prop) ->
 		       end, OAcc,Text),
     prop_of_globals(NAcc,T,Text,Prop).
 
-
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").
 globals_test() ->
