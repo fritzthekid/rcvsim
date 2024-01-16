@@ -171,32 +171,33 @@ get(N,L) ->
 
 get_arguments(PIDM,LL,Globals) ->
     logger:debug("get_arguments: ~p",[LL]),
-    lists:foldl(fun(A,Acc) ->
-			case rvsutils:code_to_object(A) of 
-			    {integer,Val,_} ->
-				Acc++[Val];
-			    {register,Name,_} ->
-				logger:debug("get_argument: register ~p",[Name]),
-				Val = load_register(PIDM,Name),
-				Acc ++ [Val];
-			    {memory_access_via_register,Ofs,Name} ->
-				Add = load_register(PIDM,Name),
-				Val = load_memory(PIDM,Add+Ofs),
-				Acc++[Val];
-			    {memory_access_via_global_hi,_,G} ->
-				logger:debug("get_argument: memory_address_global_hi ~p",[G]),
-				{_Prefix,Add} = rvsmemory:derive_address(PIDM,Globals,A),
-				Acc++[(Add bsr 4096) bsl 4096];
-			    {memory_access_via_global_lo,_,G} ->
-				logger:debug("get_argument: memory_access_via_global_hi ~p",[G]),
-				{_Prefix,Add} = rvsmemory:derive_address(PIDM,Globals,A),
-				logger:info("use address ... ~p",[Add]),
-				Acc++[Add rem 4096];
-			    _R ->
-				logger:error("get_argument failed: ~p",[_R]),
-				Acc++[error]
-			end
-		end, [],LL).
+    F = fun(A,Acc) ->
+		case rvsutils:code_to_object(A) of 
+		    {integer,Val,_} ->
+			Acc++[Val];
+		    {register,Name,_} ->
+			logger:debug("get_argument: register ~p",[Name]),
+			Val = load_register(PIDM,Name),
+			Acc ++ [Val];
+		    {memory_access_via_register,Ofs,Name} ->
+			Add = load_register(PIDM,Name),
+			Val = load_memory(PIDM,Add+Ofs),
+			Acc++[Val];
+		    {memory_access_via_global_hi,_,G} ->
+			logger:debug("get_argument: memory_address_global_hi ~p",[G]),
+			{_Prefix,Add} = rvsmemory:derive_address(PIDM,Globals,A),
+			Acc++[(Add bsr 4096) bsl 4096];
+		    {memory_access_via_global_lo,_,G} ->
+			logger:debug("get_argument: memory_access_via_global_hi ~p",[G]),
+			{_Prefix,Add} = rvsmemory:derive_address(PIDM,Globals,A),
+			logger:info("use address ... ~p",[Add]),
+			Acc++[Add rem 4096];
+		    _R ->
+			logger:error("get_argument failed: ~p",[_R]),
+			Acc++[error]
+		end
+	end,
+    lists:foldl(F, [],LL).
 
 save_to_location(PIDM, DA, Val,Globals) ->
     logger:info("save to location ~p,~p",[DA,Val]),

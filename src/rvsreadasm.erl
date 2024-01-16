@@ -52,15 +52,17 @@ remove_comment(Text) ->
 
 globals_maps(Text,GlobalsFilename) ->
     G=grep_globals(Text),
-    SM=maps:from_list(size_of_globals(Text,G)),
-    TM=maps:from_list(type_of_globals(Text,G)),
+    SM=maps:from_list(prop_of_globals(Text,G,"size")),
+    TM=maps:from_list(prop_of_globals(Text,G,"type")),
+    AM=maps:from_list(prop_of_globals(Text,G,"addr")),
     GM=maps:from_list(lists:foldl(fun(SG,Acc)->
 				       Acc++[{SG,maps:from_list(
-						   [{size,maps:get(SG,SM)},
-						    {type,maps:get(SG,TM)}]
+						   [{size,maps:get(SG,SM,"0")},
+						    {type,maps:get(SG,TM,"_")},
+						    {addr,maps:get(SG,AM,"-1")}]
 						  )
 					     }
-					    ] 
+					    ]
 				  end, [], G)),
     case file:consult(GlobalsFilename) of
 	{ok,[L]} ->
@@ -134,37 +136,22 @@ grep_globals(Text) ->
 			end
 		    end, [], Text).
 
-size_of_globals(Text,Globals) ->
-    size_of_globals([],Globals,Text).
-size_of_globals(Acc,[],_) -> Acc;
-size_of_globals(OAcc,[G|T],Text) ->
+prop_of_globals(Text,Globals,Prop) ->
+    prop_of_globals([],Globals,Text,Prop).
+prop_of_globals(Acc,[],_,_) -> Acc;
+prop_of_globals(OAcc,[G|T],Text,Prop) ->
     NAcc = lists:foldl(fun(Line,Acc)->
-			case re:run(Line,"\.size[\t, ]*"++G++"[,\t ]*") of
-			    nomatch ->
-				Acc;
-			    {match,[{Left,Len}]} ->
-				Acc ++ [{G,string:strip(lists:sublist(Line,Left+Len+1,80))}];
+			case re:split(Line,"[\t \,]",[{return,list}]) of
+			%% case re:run(Line,"[\.][a-z]+[\t, ]*"++G++"[,\t ]*") of
+			%% case re:run(Line,"\.size[\t, ]*"++G++"[,\t ]*") of
+			    [[],"."++Prop,G,[],Num] ->
+				Acc ++ [{G,Num}];
 			    _Default ->
-				Acc ++ [error]
+				Acc
 			end
 		       end, OAcc,Text),
-    size_of_globals(NAcc,T,Text).
+    prop_of_globals(NAcc,T,Text,Prop).
 
-type_of_globals(Text,Globals) ->
-    type_of_globals([],Globals,Text).
-type_of_globals(Acc,[],_) -> Acc;
-type_of_globals(OAcc,[G|T],Text) ->
-    NAcc = lists:foldl(fun(Line,Acc)->
-			case re:run(Line,"\.type[\t, ]*"++G++"[,\t ]*") of
-			    nomatch ->
-				Acc;
-			    {match,[{Left,Len}]} ->
-				Acc ++ [{G,string:strip(lists:sublist(Line,Left+Len+1,80))}];
-			    _Default ->
-				Acc ++ [error]
-			end
-		       end, OAcc,Text),
-    type_of_globals(NAcc,T,Text).
 
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").

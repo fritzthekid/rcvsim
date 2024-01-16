@@ -31,7 +31,9 @@ memory(Memory) ->
 	    end,
 	    memory(Memory);
 	{ PID, store, Address, Value } ->
-	    case {Address < 0,Address >= array:size(Memory)} of
+	    {Lower,Higher} = { (Address<0),(Address>=array:size(Memory)) },
+	    logger:info("rvsmemory:memory access is (< 0): ~p or (>=Size): ~p",[Lower,Higher]),
+	    case {Lower,Higher} of
 		{true,_} ->
 		    logger:error("memory access out of range < 0: ~p",[Address]),
 		    throw({"memory access out of range",Address});

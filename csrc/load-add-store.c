@@ -2,6 +2,11 @@
 
 extern int32_t buffer[];
 
+#ifndef WITHMAIN
+asm (".text\n\t"
+     ".addr\tbuffer, 400\n\t");
+#endif
+
 #ifndef WITHMAIN  
 asm (".text\n.start:\n\t"
      "nop\n\t"
