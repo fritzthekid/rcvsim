@@ -42,8 +42,26 @@ code_to_object(X) ->
 		true ->
 		    {error,"neither relative memory nor register access",X}
 	    end;
+	{false,true,_,5,"%lo"} ->
+	    logger:debug("rvsutils:code_to_object, memory access short hand ~p",[Split]),
+	    [_,G,_,Reg,_] = Split,
+	    Regs = registernames(32),
+	    case lists:member(Reg,Regs) of
+		true ->
+		    {memory_access_via_register_short_hand_lo,G,Reg};
+		_ ->
+		    logger:error("rvsutils:code_to_object short hand, but not register ~p",[Reg]),
+		    throw({"rvsutils:code_to_object short hand, but not register",Reg})
+	    end;
 	_R ->
 	    {error,"neither relative register nor global access",X}
+    end.
+
+factorial(Num) -> 
+    if
+	Num < 1   -> 0;
+	Num =:= 1 -> 1;
+	true      -> Num * factorial(Num-1)
     end.
 
 get_in_list(N,L) ->
@@ -60,14 +78,25 @@ registernames(N) ->
     %% lists:foldl(fun(X,Acc) -> 
     %% 			[io_lib:format("a~2..0B", [X])] ++ Acc 
     %% 		end, [], lists:seq(0,N-1))++["s0","sp"].
+    TRegs = lists:foldl(fun(I,Acc) ->
+			Acc++["t"++integer_to_list(I)]
+		end, [], lists:seq(0,8)),
+    SRegs = lists:foldl(fun(I,Acc) ->
+			Acc++["s"++integer_to_list(I)]
+		end, [], lists:seq(0,15)),
     lists:foldl(fun(I,Acc) ->
 			Acc++["a"++integer_to_list(I)]
-		end, [], lists:seq(0,N-1))++["s0","sp","ra"].
+		end, [], lists:seq(0,N-1))++["s0","sp","ra"]++SRegs++TRegs.
 
 printregisters(L) ->
     printlist(lists:foldl(fun({A,B},Acc)->if B=/=0 -> Acc++[{A,B}];true->Acc end end,[],L)).
 printlist(L) ->
     lists:foreach(fun(X)->io:format("~p~n",[X]) end, L).
+printmemory(M,A,E,Offs) ->
+    lists:foreach(fun(I)->
+			  io:format("~p:~p~n",[I,maps:get(I,maps:from_list(M))]),
+			  ok 
+		  end,lists:seq(A,E,Offs)).
 
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").

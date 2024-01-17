@@ -5,6 +5,17 @@
 
 Its restricted to the **Chapter 2: RV32I Base Integer Instruction Set**
 
+## Simple helper for RV32 and RV64
+
+Easy read to understand the assembler instructions:
+- [RISC-V Assembler Reference](https://michaeljclark.github.io/asm.html)
+Explaing the registers and the calling converntion:
+- [Calling Convention](https://riscv.org/wp-content/uploads/2015/01/riscv-calling.pdf)
+
+## General information about Assembler Directives
+
+[Assembler Directives](https://ftp.gnu.org/old-gnu/Manuals/gas-2.9.1/html_chapter/as_7.html)
+
 ## lex, yacc
 
 lex (flex) + yacc (bison) rules for VHDL:

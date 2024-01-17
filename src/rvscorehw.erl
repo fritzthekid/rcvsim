@@ -61,6 +61,8 @@ do_operation(PIDM, Op, Defines,PC) ->
 	    ok = save_register(PIDM,"ra",PC+1),
 	    Target = maps:get(lists:last(Op),Labels),
 	    {ok,jump,Target};
+	"tail" ->
+	    do_operation(PIDM,["call",lists:last(Op)],Defines,PC);
 	"sw" ->
 	    [_|[Arg|_]] = Op,
 	    do_op(PIDM,["sw"],lists:last(Op),calcop,[Arg],Defines);
@@ -78,10 +80,13 @@ do_operation(PIDM, Op, Defines,PC) ->
     end.
 
 opstype(Op) ->
-    IsMCalOp=lists:member(hd(Op),["addi","add","sud","mul","rem","slli","srai",
-				  "load","lui","li","lw","mw","mv"]),
-    IsMBraOp=lists:member(hd(Op),["bne","beqz","bnez","bltz","bgtz","bgt","ble","bge","bgtu"
-				  "bleu","bleu"]),
+%% 
+
+    IsMCalOp=lists:member(hd(Op),["addi","add","sub","mul","rem","slli","srai","neg",
+				  "slt","sgt","sle","sge","seq","sne","slti","sgti","slei","sgei","seqi","snei",
+				  "load","lui","li","lw","mw","mv","andi", "xori", "ori"]),
+    IsMBraOp=lists:member(hd(Op),["beqz","bnez","blez","bltz","bgtz","bgez","bgt",
+				  "bne","beq","blt","ble","bge","bgt"]),
     case {IsMCalOp,IsMBraOp} of
 	{true,false} ->
 	    [_|[H|T]] = Op,
@@ -137,6 +142,7 @@ do_pat(Op,Args) ->
 	"add" -> hd(Args)+get(2,Args);
 	"sub" -> hd(Args)-get(2,Args);
 	"mul" -> hd(Args)*get(2,Args);
+	"neg" -> -1*hd(Args);
 	"rem" -> hd(Args) rem get(2,Args);
 	"bsl" -> hd(Args) bsl get(2,Args);
 	"bsr" -> hd(Args) bsr get(2,Args);
@@ -146,20 +152,37 @@ do_pat(Op,Args) ->
 	"load" -> hd(Args);
 	"slli" -> hd(Args) bsl get(2,Args);
 	"srai" -> hd(Args) bsr get(2,Args);
+	"sge" -> Is = hd(Args)>=get(2,Args), if Is -> 1; true -> 0 end;
+	"sgei" -> Is = hd(Args)>=get(2,Args), if Is -> 1; true -> 0 end;
+	"sle" -> Is = hd(Args)=<get(2,Args), if Is -> 1; true -> 0 end;
+	"slei" -> Is = hd(Args)=<get(2,Args), if Is -> 1; true -> 0 end;
+	"sgt" -> Is = hd(Args)>get(2,Args), if Is -> 1; true -> 0 end;
+	"sgti" -> Is = hd(Args)>get(2,Args), if Is -> 1; true -> 0 end;
+	"slt" -> Is = hd(Args)<get(2,Args), if Is -> 1; true -> 0 end;
+	"slti" -> Is = hd(Args)<get(2,Args), if Is -> 1; true -> 0 end;
+	"seq" -> Is = hd(Args)=:=get(2,Args), if Is -> 1; true -> 0 end;
+	"sne" -> Is = hd(Args)=/=get(2,Args), if Is -> 1; true -> 0 end;
+	"seqi" -> Is = hd(Args)=:=get(2,Args), if Is -> 1; true -> 0 end;
+	"snei" -> Is = hd(Args)=/=get(2,Args), if Is -> 1; true -> 0 end;
 	"lw" -> hd(Args);
 	"mv" -> hd(Args);
 	"mw" -> hd(Args);
 	"sw" -> hd(Args);
 	"beqz" -> hd(Args) =:= 0;
 	"bnez" -> hd(Args) =/= 0;
-	"blez" -> hd(Args) >= 0;
+	"blez" -> hd(Args) =< 0;
 	"bltz" -> hd(Args) < 0;
 	"bgtz" -> hd(Args) > 0;
+	"bgez" -> hd(Args) >= 0;
 	"bne" -> hd(Args) =/= get(2,Args);
+	"beq" -> hd(Args) =:= get(2,Args);
 	"bge" -> hd(Args) >= get(2,Args);
 	"bgt" -> hd(Args) > get(2,Args);
 	"ble" -> hd(Args) =< get(2,Args);
 	"blt" -> hd(Args) < get(2,Args);
+	"andi" -> hd(Args) band get(2,Args);
+	"ori" -> hd(Args) bor get(2,Args);
+	"xori" -> hd(Args) bxor get(2,Args);
 	%%"bgtu" -> hd(Args) =< get(2,Args);
 	%%"bleu" -> hd(Args) =< get(2,Args);
 	_Default ->
@@ -192,6 +215,20 @@ get_arguments(PIDM,LL,Globals) ->
 			{_Prefix,Add} = rvsmemory:derive_address(PIDM,Globals,A),
 			logger:info("use address ... ~p",[Add]),
 			Acc++[Add rem 4096];
+		    {memory_access_via_register_short_hand_lo,G,Reg} ->
+			logger:debug("get_argument: memory_access..short_hand ~p,~p",[G,Reg]),
+			case lists:member(G,maps:keys(Globals)) of
+			    true ->
+				Add = rvsmemory:make_it_integer(maps:get(addr,maps:get(G,Globals))),
+				Offs = load_register(PIDM,Reg),
+				logger:debug("get_arguments short hand, ~p,~p",[Add,Offs]),
+				Val = load_memory(PIDM,Add+(Offs rem 4096)),
+				logger:debug("get_arguments short hand value, ~p",[Val]),
+				Acc++[Val];
+			    _R ->
+				logger:error("get argument failed, mem_access_short_hans, global is not known ~p",[G]),
+				throw({"get argument failed, mem_access_short_hans, global is not known",G})
+			end;
 		    _R ->
 			logger:error("get_argument failed: ~p",[_R]),
 			Acc++[error]
@@ -207,20 +244,20 @@ save_to_location(PIDM, DA, Val,Globals) ->
 	    logger:debug("save_to_location, ismember of registers: ~p,~p",[DA,Val]),
 	    save_register(PIDM,DA,Val);
 	_ ->
-	    logger:info("try save in memory (reladdr): ~p: ~p",[DA,Val]),
+	    logger:debug("try save in memory (reladdr): ~p: ~p",[DA,Val]),
 	    case rvsmemory:derive_address(PIDM,Globals,DA) of
 		{absval,Add} -> 
-		    logger:info("try save in memory (absaddr): ~p: ~p",[Add,Val]),
+		    logger:debug("try save in memory (absaddr): ~p: ~p",[Add,Val]),
 		    if Val =:= "zero" ->
-			    logger:info("!!!!! store Val: zero at ~p",[Add]),
+			    logger:debug("!!!!! store Val: zero at ~p",[Add]),
 			    save_memory(PIDM,Add,0);
 		       true ->
-			    logger:info("!!!!! store ~p at ~p",[Val,Add]),
+			    logger:debug("!!!!! store ~p at ~p",[Val,Add]),
 			    save_memory(PIDM,Add, Val)
 		    end;
 		{"%lo",TVal} -> 
-		    logger:notice("rvscorehw,save_to_location: %lo(~p)(Reg) is shorthand: ~p",
-				  [TVal,DA]),
+		    logger:info("rvscorehw,save_to_location: %lo(~p)(Reg) is shorthand: ~p",
+				[TVal,DA]),
 		    Addd = setup_value(PIDM,DA,TVal),
 		    save_memory(PIDM,Addd,Val);
 		_R -> logger:error("rvscorehw,save_to_location: ~p not supported yet",[_R])

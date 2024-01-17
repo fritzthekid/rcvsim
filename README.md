@@ -36,5 +36,20 @@ since pretty many instructions are still missing.
 
 ## Currently supported
 
-Only one function, no arguments, only way use it can be seen in the small c-functions,
-in csrc.
+The subset of assembler instructions and small implementation details restricts
+the programs, only in one file.
+
+Currently **only one datatype (int32_t) are support** and only some rudimentary I/O.
+
+With that it is possible to run small programs. One hard test is the Recursion test4.c
+
+As an example look up [test3.c](csrc/test3.c) or [test4.c](csrc/test4.c).
+
+Call the functions like this
+
+~~~
+$ rebar3 shell
+1> rvsmain:run("_build/obj/test4.s",[{input,[6]}])
+... 720}}
+2>
+~~~

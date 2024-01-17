@@ -52,7 +52,6 @@ memory(Memory) ->
     end.
 
 derive_address(PIDM,Globals,Code) ->
-    logger:info("derive_address: Globals: ~p",[Globals]),
     L = if 
 	    Code =:= "zero" ->
 		logger:info("!!!! derive_address zero"),
@@ -87,20 +86,18 @@ derive_address(PIDM,Globals,Code) ->
     end.
 
 derive_address(Globals,Label,Key,Prefix)->
-    case re:run(Label,".*[+][0-9]+") of
-	nomatch -> { Lab, Offset } = { Label, 0 };
+    {Lab,Offset} = case re:run(Label,".*[+][0-9]+") of
+	nomatch -> { Label, 0 };
 	{match,_} -> 
-	    [ Lab, Off ] = string:split(Label,"+"),
-	    { Offset,_ } = string:to_integer(Off)
+	    [ La, Off ] = string:split(Label,"+"),
+			   { Offs,_ } = string:to_integer(Off),
+			   { La, Offs }
     end,
     case lists:member(Lab,maps:keys(Globals)) of
         true ->
 	    Val = make_it_integer(maps:get(Key,maps:get(Lab,Globals))),
-	    logger:info("derive: ~p,~p",[Prefix,Val+Offset]),
 	    {Prefix,Val+Offset};
 	_ ->
-	    logger:error("rvsmemory, derive_address: label ~p not found in globals ~p",
-			 [Label,Globals]),
 	    throw({"label not found in globals",Label})
     end.
 
