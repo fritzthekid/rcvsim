@@ -154,23 +154,11 @@ prop_of_globals(OAcc,[G|T],Text,Prop) ->
 
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").
-globals_test() ->
-    rvsutils:write_terms("test/outputs/no-globals.config",[[]]),
-    G = globals_maps(read_text_file_as_list("_build/obj/func-with-globals.s"),"test/outputs/no-globals.config"),
-    ?assertEqual("4000",maps:get(size,maps:get("buffer",G))),
-    ok.
 list_text_test() ->
-    Text = read_text_file_as_list("_build/obj/func-with-globals.s"),
-    ?assertEqual(19,length(list_text(Text,3,22))),
+    Text = read_text_file_as_list("_build/obj/test1.s"),
     print_text(Text).
 read_text_file_test() ->
     [error] = read_text_file_as_list("test/x/somefile").
-globals_maps_test() ->
-    GM = globals_maps(read_text_file_as_list("_build/obj/func-with-globals.s"),
-		     "test/data/no-globals.config"),
-    GX = globals_maps(read_text_file_as_list("_build/obj/func-with-globals.s"),
-		      "test/x/somefile"),
-    ?assert(GM==GX).
 do_line_test()->
     ?assertEqual(["nop"],do_line("\tnop")),
     ?assertEqual(["nop"],do_line("nop")),

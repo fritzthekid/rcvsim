@@ -50,8 +50,5 @@ int32_t __attribute__ ((noinline)) main(int32_t argc, int32_t *argv) {
   if (argc > 1) {
     fib = fibonacci(argv[1]);
   }
-  if (argc>4) {
-    com = compare(argv[2],argv[3],argv[4]);
-  }
   return fib+fac+com;
 }
