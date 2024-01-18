@@ -48,10 +48,10 @@ do_operation(PIDM, Op, Defines,PC) ->
 	    logger:info("rvscorehw,do_operation: return"),
 	    do_return(PIDM,Defines,PC);
 	"jr" -> %% jump register
-	    Targets = get_arguments(PIDM,[lists:last(Op)],Globals),
-	    logger:info("rvscorehw do_operation: jump target ~p ~p",[hd(Op),hd(Targets)]),
+	    {Target,_} = get_arguments(PIDM,[lists:last(Op)],Globals),
+	    logger:info("rvscorehw do_operation: jump target ~p ~p",[hd(Op),Target]),
 	    %%Target = lists:last(Op),
-	    {ok,jump,hd(Targets)}; %%maps:get(Target,Labels,-1)};
+	    {ok,jump,Target}; %%maps:get(Target,Labels,-1)};
 	"j" -> %% jump label
 	    %%Target = get_arguments(PIDM,[lists:last(Op)],Globals),
 	    Target = lists:last(Op),
@@ -116,9 +116,9 @@ do_op(_,["nop"],_,_,_,_) ->
     ok;
 do_op(PIDM,Op,DA,OpType,ArgsList,{Globals,Labels}) ->
     logger:debug("do_op: Op ~p",[Op]),
-    Args = get_arguments(PIDM,ArgsList,Globals),
-    PatResult = do_pat(Op,Args),
-    logger:debug("do_op: Op ~p, PatResult ~p, ArgsList ~p, Args ~p",[Op,PatResult,ArgsList,Args]),
+    {A,B} = get_arguments(PIDM,ArgsList,Globals),
+    PatResult = do_pat(Op,A,B),
+    logger:debug("do_op: Op ~p, PatResult ~p, ArgsList ~p, Args ~p,~p",[Op,PatResult,ArgsList,A,B]),
     case {PatResult,OpType} of
 	{error,_} ->
 	    logger:notice("do_op: operation ~p unknown, do nop",[Op]);
@@ -139,121 +139,62 @@ do_op(PIDM,Op,DA,OpType,ArgsList,{Globals,Labels}) ->
 		    end;
 		R ->
 		    logger:error("do_op,branchop: ~p is not a target ~p",[DA,R]),
-		    throw({"branch target is not a label",DA,Args,ArgsList,lists:last(Op)})
+		    throw({"branch target is not a label",DA,A,B,ArgsList,lists:last(Op)})
 	    end			
     end.
 
-do_pat(Op,Args) ->
-    logger:debug("HOp ~p, Arg: ~p",[hd(Op),Args]),
+do_pat(Op,A,B) ->
+    logger:debug("do_pat(~p,~p,~p)",[Op,A,B]),
     case hd(Op) of
-	"add" -> hd(Args)+get(2,Args);
-	"sub" -> hd(Args)-get(2,Args);
-	"mul" -> hd(Args)*get(2,Args);
-	"neg" -> -1*hd(Args);
-	"rem" -> hd(Args) rem get(2,Args);
-	"bsl" -> hd(Args) bsl get(2,Args);
-	"bsr" -> hd(Args) bsr get(2,Args);
-	"addi" -> (hd(Args)+get(2,Args)) rem (1 bsl 12); %% same as %lo(global)
-	"lui" -> (hd(Args) bsr 12) bsl 12;                    %% same as %hi(global)
-	"li" -> hd(Args);
-	"load" -> hd(Args);
-	"slli" -> hd(Args) bsl get(2,Args);
-	"srai" -> hd(Args) bsr get(2,Args);
-	"sge" -> Is = hd(Args)>=get(2,Args), if Is -> 1; true -> 0 end;
-	"sgei" -> Is = hd(Args)>=get(2,Args), if Is -> 1; true -> 0 end;
-	"sle" -> Is = hd(Args)=<get(2,Args), if Is -> 1; true -> 0 end;
-	"slei" -> Is = hd(Args)=<get(2,Args), if Is -> 1; true -> 0 end;
-	"sgt" -> Is = hd(Args)>get(2,Args), if Is -> 1; true -> 0 end;
-	"sgti" -> Is = hd(Args)>get(2,Args), if Is -> 1; true -> 0 end;
-	"slt" -> Is = hd(Args)<get(2,Args), if Is -> 1; true -> 0 end;
-	"slti" -> Is = hd(Args)<get(2,Args), if Is -> 1; true -> 0 end;
-	"seq" -> Is = hd(Args)=:=get(2,Args), if Is -> 1; true -> 0 end;
-	"sne" -> Is = hd(Args)=/=get(2,Args), if Is -> 1; true -> 0 end;
-	"seqi" -> Is = hd(Args)=:=get(2,Args), if Is -> 1; true -> 0 end;
-	"snei" -> Is = hd(Args)=/=get(2,Args), if Is -> 1; true -> 0 end;
-	"lw" -> hd(Args);
-	"mv" -> hd(Args);
-	"mw" -> hd(Args);
-	"sw" -> hd(Args);
-	"beqz" -> hd(Args) =:= 0;
-	"bnez" -> hd(Args) =/= 0;
-	"blez" -> hd(Args) =< 0;
-	"bltz" -> hd(Args) < 0;
-	"bgtz" -> hd(Args) > 0;
-	"bgez" -> hd(Args) >= 0;
-	"bne" -> hd(Args) =/= get(2,Args);
-	"beq" -> hd(Args) =:= get(2,Args);
-	"bge" -> hd(Args) >= get(2,Args);
-	"bgt" -> hd(Args) > get(2,Args);
-	"ble" -> hd(Args) =< get(2,Args);
-	"blt" -> hd(Args) < get(2,Args);
-	"andi" -> hd(Args) band get(2,Args);
-	"ori" -> hd(Args) bor get(2,Args);
-	"xori" -> hd(Args) bxor get(2,Args);
-	%%"bgtu" -> hd(Args) =< get(2,Args);
-	%%"bleu" -> hd(Args) =< get(2,Args);
+	"add" -> A+B;
+	"sub" -> A-B;
+	"mul" -> A*B;
+	"neg" -> -1*A;
+	"rem" -> A rem B;
+	"bsl" -> A bsl B;
+	"bsr" -> A bsr B;
+	"addi" -> (A+B) rem (1 bsl 12); %% same as %lo(global)
+	"lui" -> (A bsr 12) bsl 12;                    %% same as %hi(global)
+	"li" -> A;
+	"load" -> A;
+	"slli" -> A bsl B;
+	"srai" -> A bsr B;
+	"sge" -> Is = A>=B, if Is -> 1; true -> 0 end;
+	"sgei" -> Is = A>=B, if Is -> 1; true -> 0 end;
+	"sle" -> Is = A=<B, if Is -> 1; true -> 0 end;
+	"slei" -> Is = A=<B, if Is -> 1; true -> 0 end;
+	"sgt" -> Is = A>B, if Is -> 1; true -> 0 end;
+	"sgti" -> Is = A>B, if Is -> 1; true -> 0 end;
+	"slt" -> Is = A<B, if Is -> 1; true -> 0 end;
+	"slti" -> Is = A<B, if Is -> 1; true -> 0 end;
+	"seq" -> Is = A=:=B, if Is -> 1; true -> 0 end;
+	"sne" -> Is = A=/=B, if Is -> 1; true -> 0 end;
+	"seqi" -> Is = A=:=B, if Is -> 1; true -> 0 end;
+	"snei" -> Is = A=/=B, if Is -> 1; true -> 0 end;
+	"lw" -> A;
+	"mv" -> A;
+	"mw" -> A;
+	"sw" -> A;
+	"beqz" -> A =:= 0;
+	"bnez" -> A =/= 0;
+	"blez" -> A =< 0;
+	"bltz" -> A < 0;
+	"bgtz" -> A > 0;
+	"bgez" -> A >= 0;
+	"bne" -> A =/= B;
+	"beq" -> A =:= B;
+	"bge" -> A >= B;
+	"bgt" -> A > B;
+	"ble" -> A =< B;
+	"blt" -> A < B;
+	"andi" -> A band B;
+	"ori" -> A bor B;
+	"xori" -> A bxor B;
+	%%"bgtu" -> A =< B;
+	%%"bleu" -> A =< B;
 	_Default ->
 	    error
     end.
-
-get(N,L) ->
-    hd(lists:sublist(L,N,1)).
-
-%% do_pat(Op,A,B) ->
-%%     logger:debug("do_pat(~p,~p,~p)",[Op,A,B]),
-%%     case hd(Op) of
-%% 	"add" -> A+B;
-%% 	"sub" -> A-B;
-%% 	"mul" -> A*B;
-%% 	"neg" -> -1*A;
-%% 	"rem" -> A rem B;
-%% 	"bsl" -> A bsl B;
-%% 	"bsr" -> A bsr B;
-%% 	"addi" -> (A+B) rem (1 bsl 12); %% same as %lo(global)
-%% 	"lui" -> (A bsr 12) bsl 12;                    %% same as %hi(global)
-%% 	"li" -> A;
-%% 	"load" -> A;
-%% 	"slli" -> A bsl B;
-%% 	"srai" -> A bsr B;
-%% 	"sge" -> Is = A>=B, if Is -> 1; true -> 0 end;
-%% 	"sgei" -> Is = A>=B, if Is -> 1; true -> 0 end;
-%% 	"sle" -> Is = A=<B, if Is -> 1; true -> 0 end;
-%% 	"slei" -> Is = A=<B, if Is -> 1; true -> 0 end;
-%% 	"sgt" -> Is = A>B, if Is -> 1; true -> 0 end;
-%% 	"sgti" -> Is = A>B, if Is -> 1; true -> 0 end;
-%% 	"slt" -> Is = A<B, if Is -> 1; true -> 0 end;
-%% 	"slti" -> Is = A<B, if Is -> 1; true -> 0 end;
-%% 	"seq" -> Is = A=:=B, if Is -> 1; true -> 0 end;
-%% 	"sne" -> Is = A=/=B, if Is -> 1; true -> 0 end;
-%% 	"seqi" -> Is = A=:=B, if Is -> 1; true -> 0 end;
-%% 	"snei" -> Is = A=/=B, if Is -> 1; true -> 0 end;
-%% 	"lw" -> A;
-%% 	"mv" -> A;
-%% 	"mw" -> A;
-%% 	"sw" -> A;
-%% 	"beqz" -> A =:= 0;
-%% 	"bnez" -> A =/= 0;
-%% 	"blez" -> A =< 0;
-%% 	"bltz" -> A < 0;
-%% 	"bgtz" -> A > 0;
-%% 	"bgez" -> A >= 0;
-%% 	"bne" -> A =/= B;
-%% 	"beq" -> A =:= B;
-%% 	"bge" -> A >= B;
-%% 	"bgt" -> A > B;
-%% 	"ble" -> A =< B;
-%% 	"blt" -> A < B;
-%% 	"andi" -> A band B;
-%% 	"ori" -> A bor B;
-%% 	"xori" -> A bxor B;
-%% 	%%"bgtu" -> A =< B;
-%% 	%%"bleu" -> A =< B;
-%% 	_Default ->
-%% 	    error
-%%     end.
-
-%%get(N,L) ->
-%⅜    hd(lists:sublist(L,N,1)).
 
 get_arguments(PIDM,LL,Globals) ->
     logger:debug("get_arguments: ~p",[LL]),
@@ -299,12 +240,11 @@ get_arguments(PIDM,LL,Globals) ->
 	end,
     Args = lists:foldl(F, [],LL),
     logger:debug("get_arguments: args ~p",[Args]),
-    {_A,_B} = case length(Args) of
+    case length(Args) of
 	1 -> { hd(Args),  0};
 	2 -> [A,B] = Args, { A,B }; 
 	_R -> throw({"get argument fails (length different from 1 or 2):",_R})
-    end,
-    Args.
+    end.
 
 save_to_location(PIDM, DA, Val,Globals) ->
     logger:info("save to location ~p,~p",[DA,Val]),
@@ -472,10 +412,10 @@ register_timeout_test() ->
     ?assert(is_process_alive(PID)=:=false),
     ok.
 do_pat_test() ->
-    ?assertEqual(70,do_pat(["mul","sf","sdf"],[10,7])),
-    ?assertEqual(17,do_pat(["addi","sf","sdf"],[10,7])),
-    ?assertEqual(true,do_pat(["bge","sf","sdf"],[10,7])),
-    ?assertException(error,badarith,do_pat(["rem","asdfc","sfd"],[17,0])).
+    ?assertEqual(70,do_pat(["mul","sf","sdf"],10,7)),
+    ?assertEqual(17,do_pat(["addi","sf","sdf"],10,7)),
+    ?assertEqual(true,do_pat(["bge","sf","sdf"],10,7)),
+    ?assertException(error,badarith,do_pat(["rem","asdfc","sfd"],17,0)).
 save_timeout_test() ->
     PID=spawn(fun()->timer:sleep(10) end),
     timer:sleep(15),
@@ -539,7 +479,7 @@ get_arguments_test() ->
     save_register(PIDM,"a21",400),
     ?assertEqual(400,load_register(PIDM,"a21")),
     Args = get_arguments(PIDM,["0(a21)","%lo(buffer+12)"],Globals),
-    ?assertEqual([127,412],Args),
+    ?assertEqual({127,412},Args),
     rvsmain:kill([PIDReg,PIDMem]),
     ok.
 control_failure_test() ->
