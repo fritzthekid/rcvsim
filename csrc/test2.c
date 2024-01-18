@@ -1,20 +1,35 @@
 #include <stdint-gcc.h>
+#include "__startup__.h"
 
 extern int32_t buffer[];
 
+int32_t load_add_store();
+
+#ifndef WITHMAIN
+asm (".text\n\t"
+     ".globl\tbuffer\n\t"
+     ".addr\tbuffer, 500\n\t");
+#endif
+
+/* #ifndef WITHMAIN   */
+/* void __attribute__ ((noinline)) loader(void) { */
+/*   asm ("li sp,100\n\t" */
+/*        "li s0,200\n\t" */
+/*        "li a0,400\n\t" */
+/*        "li a1,2\n\t" */
+/*        "sw a1,0(a0)\n\t" */
+/*        "li a1,0\n\t" */
+/*        "sw a1,4(a0)\n\t" */
+/*        "load a1,5\n\t" */
+/*        "sw a1,8(a0)"); */
+/*   load_add_store(); */
+/*   asm ("nop\n\t" */
+/*        "exit\n\t"); */
+/* } */
+/* #endif */
+
 int32_t load_add_store() {
   int32_t a,b,c;
-#ifndef WITHMAIN  
-  asm ("li sp,100\n\t"
-       "li s0,200\n\t"
-       "li a0,400\n\t"
-       "li a1,2\n\t"
-       "sw a1,0(a0)\n\t"
-       "li a1,0\n\t"
-       "sw a1,4(a0)\n\t"
-       "load a1,5\n\t"
-       "sw a1,8(a0)");
-#endif
   a = buffer[0];
   b = buffer[1];
   c = buffer[2];
@@ -23,6 +38,13 @@ int32_t load_add_store() {
     buffer[10+i] = a;
   }
   buffer[3] = a + b;
+  return a+b;
+}
+
+int32_t main(int32_t argc, int32_t *argv) {
+  buffer[0] = argv[0];
+  buffer[1] = argv[1];
+  buffer[2] = argv[2];
+  load_add_store();
   return 0;
 }
-    

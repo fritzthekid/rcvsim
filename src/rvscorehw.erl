@@ -4,7 +4,7 @@
 control(PIDM, Program, Defines, Data, PC) ->
     case maps:find(PC,maps:from_list(Program)) of
 	{ok, Inst} ->
-	    case do_operation(PIDM, Inst, Defines) of
+	    case do_operation(PIDM, Inst, Defines, PC) of
 		ok ->
 		    if 
 			PC >= length(Program) ->
@@ -25,7 +25,7 @@ control(PIDM, Program, Defines, Data, PC) ->
 		    throw({"control stops with strange end:",_Default})		    
 		end;
 	error ->
-	    ok = do_operation(PIDM, ["nop"], Defines),
+	    ok = do_operation(PIDM, ["nop"], Defines, PC),
 	    if 
 		PC >= length(Program) ->
 		    maps:get(main,PIDM) ! ok;
@@ -34,10 +34,10 @@ control(PIDM, Program, Defines, Data, PC) ->
 	    end
     end.
 
-do_operation(_,["nop"],_) ->
+do_operation(_,["nop"],_,_) ->
     logger:info("do_operation: nop, do nothing"),
     ok;
-do_operation(PIDM, Op, Defines) ->
+do_operation(PIDM, Op, Defines,PC) ->
     logger:info("do_operation: Op ~p",[Op]),
     {Globals,Labels} = Defines,
     case hd(Op) of
@@ -46,16 +46,26 @@ do_operation(PIDM, Op, Defines) ->
 	    { ok, exit };
 	"ret" ->
 	    logger:info("rvscorehw,do_operation: return"),
-	    do_return(PIDM,Defines);
-	"jr" ->
-	    {Globals, _} = Defines,
+	    do_return(PIDM,Defines,PC);
+	"jr" -> %% jump register
 	    Targets = get_arguments(PIDM,[lists:last(Op)],Globals),
-	    {ok,jump,hd(Targets)};
+	    logger:info("rvscorehw do_operation: jump target ~p ~p",[hd(Op),hd(Targets)]),
+	    %%Target = lists:last(Op),
+	    {ok,jump,hd(Targets)}; %%maps:get(Target,Labels,-1)};
+	"j" -> %% jump label
+	    %%Target = get_arguments(PIDM,[lists:last(Op)],Globals),
+	    Target = lists:last(Op),
+	    logger:info("rvscorehw do_operation: jump target ~p num ~p",[Target,maps:get(Target,Labels,"not_found")]),
+	    {ok,jump,maps:get(Target,Labels,-1)};
+	"call" ->
+	    ok = save_register(PIDM,"ra",PC+1),
+	    Target = maps:get(lists:last(Op),Labels),
+	    {ok,jump,Target};
+	"tail" ->
+	    do_operation(PIDM,["call",lists:last(Op)],Defines,PC);
 	"sw" ->
 	    [_|[Arg|_]] = Op,
-	    do_op(PIDM,["sw"],lists:last(Op),calcop,[Arg],{Globals,Labels});
-	"nop" ->
-	    ok;
+	    do_op(PIDM,["sw"],lists:last(Op),calcop,[Arg],Defines);
 	_ ->
 	    case opstype(Op) of
 		{nop,nop,nop} ->
@@ -70,10 +80,13 @@ do_operation(PIDM, Op, Defines) ->
     end.
 
 opstype(Op) ->
-    IsMCalOp=lists:member(hd(Op),["addi","add","sud","mul","rem","slli","srai",
-				  "load","lui","li","lw","mw","mv"]),
-    IsMBraOp=lists:member(hd(Op),["bne","beqz","bnez","bltz","bgtz","bgt","ble","bge","bgtu"
-				  "bleu","bleu"]),
+%% 
+
+    IsMCalOp=lists:member(hd(Op),["addi","add","sub","mul","rem","slli","srai","neg",
+				  "slt","sgt","sle","sge","seq","sne","slti","sgti","slei","sgei","seqi","snei",
+				  "load","lui","li","lw","mw","mv","andi", "xori", "ori"]),
+    IsMBraOp=lists:member(hd(Op),["beqz","bnez","blez","bltz","bgtz","bgez","bgt",
+				  "bne","beq","blt","ble","bge","bgt"]),
     case {IsMCalOp,IsMBraOp} of
 	{true,false} ->
 	    [_|[H|T]] = Op,
@@ -86,9 +99,9 @@ opstype(Op) ->
 	    {nop,nop,nop}
     end.		     
 
-do_return(PIDM,Defines) ->
+do_return(PIDM,Defines,PC) ->
     logger:notice("do_return"),
-    do_operation(PIDM,["jr","sp"],Defines).
+    do_operation(PIDM,["jr","ra"],Defines,PC).
 
 do_op(_,["nop"],_,_,_,_) ->
     logger:notice("rvscorehw:do_op(nop)"),
@@ -129,6 +142,7 @@ do_pat(Op,Args) ->
 	"add" -> hd(Args)+get(2,Args);
 	"sub" -> hd(Args)-get(2,Args);
 	"mul" -> hd(Args)*get(2,Args);
+	"neg" -> -1*hd(Args);
 	"rem" -> hd(Args) rem get(2,Args);
 	"bsl" -> hd(Args) bsl get(2,Args);
 	"bsr" -> hd(Args) bsr get(2,Args);
@@ -138,20 +152,37 @@ do_pat(Op,Args) ->
 	"load" -> hd(Args);
 	"slli" -> hd(Args) bsl get(2,Args);
 	"srai" -> hd(Args) bsr get(2,Args);
+	"sge" -> Is = hd(Args)>=get(2,Args), if Is -> 1; true -> 0 end;
+	"sgei" -> Is = hd(Args)>=get(2,Args), if Is -> 1; true -> 0 end;
+	"sle" -> Is = hd(Args)=<get(2,Args), if Is -> 1; true -> 0 end;
+	"slei" -> Is = hd(Args)=<get(2,Args), if Is -> 1; true -> 0 end;
+	"sgt" -> Is = hd(Args)>get(2,Args), if Is -> 1; true -> 0 end;
+	"sgti" -> Is = hd(Args)>get(2,Args), if Is -> 1; true -> 0 end;
+	"slt" -> Is = hd(Args)<get(2,Args), if Is -> 1; true -> 0 end;
+	"slti" -> Is = hd(Args)<get(2,Args), if Is -> 1; true -> 0 end;
+	"seq" -> Is = hd(Args)=:=get(2,Args), if Is -> 1; true -> 0 end;
+	"sne" -> Is = hd(Args)=/=get(2,Args), if Is -> 1; true -> 0 end;
+	"seqi" -> Is = hd(Args)=:=get(2,Args), if Is -> 1; true -> 0 end;
+	"snei" -> Is = hd(Args)=/=get(2,Args), if Is -> 1; true -> 0 end;
 	"lw" -> hd(Args);
 	"mv" -> hd(Args);
 	"mw" -> hd(Args);
 	"sw" -> hd(Args);
 	"beqz" -> hd(Args) =:= 0;
 	"bnez" -> hd(Args) =/= 0;
-	"blez" -> hd(Args) >= 0;
+	"blez" -> hd(Args) =< 0;
 	"bltz" -> hd(Args) < 0;
 	"bgtz" -> hd(Args) > 0;
+	"bgez" -> hd(Args) >= 0;
 	"bne" -> hd(Args) =/= get(2,Args);
+	"beq" -> hd(Args) =:= get(2,Args);
 	"bge" -> hd(Args) >= get(2,Args);
 	"bgt" -> hd(Args) > get(2,Args);
 	"ble" -> hd(Args) =< get(2,Args);
 	"blt" -> hd(Args) < get(2,Args);
+	"andi" -> hd(Args) band get(2,Args);
+	"ori" -> hd(Args) bor get(2,Args);
+	"xori" -> hd(Args) bxor get(2,Args);
 	%%"bgtu" -> hd(Args) =< get(2,Args);
 	%%"bleu" -> hd(Args) =< get(2,Args);
 	_Default ->
@@ -163,46 +194,47 @@ get(N,L) ->
 
 get_arguments(PIDM,LL,Globals) ->
     logger:debug("get_arguments: ~p",[LL]),
-    lists:foldl(fun(A,Acc) ->
-			case rvsutils:code_to_object(A) of 
-			    {integer,Val,_} ->
+    F = fun(A,Acc) ->
+		case rvsutils:code_to_object(A) of 
+		    {integer,Val,_} ->
+			Acc++[Val];
+		    {register,Name,_} ->
+			logger:debug("get_argument: register ~p",[Name]),
+			Val = load_register(PIDM,Name),
+			Acc ++ [Val];
+		    {memory_access_via_register,Ofs,Name} ->
+			Add = load_register(PIDM,Name),
+			Val = load_memory(PIDM,Add+Ofs),
+			Acc++[Val];
+		    {memory_access_via_global_hi,_,G} ->
+			logger:debug("get_argument: memory_address_global_hi ~p",[G]),
+			{_Prefix,Add} = rvsmemory:derive_address(PIDM,Globals,A),
+			Acc++[(Add bsr 4096) bsl 4096];
+		    {memory_access_via_global_lo,_,G} ->
+			logger:debug("get_argument: memory_access_via_global_hi ~p",[G]),
+			{_Prefix,Add} = rvsmemory:derive_address(PIDM,Globals,A),
+			logger:info("use address ... ~p",[Add]),
+			Acc++[Add rem 4096];
+		    {memory_access_via_register_short_hand_lo,G,Reg} ->
+			logger:debug("get_argument: memory_access..short_hand ~p,~p",[G,Reg]),
+			case lists:member(G,maps:keys(Globals)) of
+			    true ->
+				Add = rvsmemory:make_it_integer(maps:get(addr,maps:get(G,Globals))),
+				Offs = load_register(PIDM,Reg),
+				logger:debug("get_arguments short hand, ~p,~p",[Add,Offs]),
+				Val = load_memory(PIDM,Add+(Offs rem 4096)),
+				logger:debug("get_arguments short hand value, ~p",[Val]),
 				Acc++[Val];
-			    {register,Name,_} ->
-				logger:debug("get_argument: register ~p",[Name]),
-				Val = load_register(PIDM,Name),
-				Acc ++ [Val];
-			    {memory_access_via_register,Ofs,Name} ->
-				Add = load_register(PIDM,Name),
-				Val = load_memory(PIDM,Add+Ofs),
-				Acc++[Val];
-			    {memory_access_via_global_hi,_,G} ->
-				logger:debug("get_argument: memory_address_global_hi ~p",[G]),
-				{_Prefix,Add} = rvsmemory:derive_address(PIDM,Globals,A),
-				Acc++[(Add bsr 4096) bsl 4096];
-			    {memory_access_via_global_lo,_,G} ->
-				logger:debug("get_argument: memory_access_via_global_hi ~p",[G]),
-				{_Prefix,Add} = rvsmemory:derive_address(PIDM,Globals,A),
-				logger:info("use address ... ~p",[Add]),
-				Acc++[Add rem 4096];
 			    _R ->
-				logger:error("get_argument failed: ~p",[_R]),
-				Acc++[error]
-			end
-		end, [],LL).
-				
-%% get_register(PIDM, Name) ->
-%%     logger:debug("get register: ~p",[Name]),
-%%     maps:get(registers,PIDM) ! {self(),load,Name},
-%%     TimeOutLoad = 100,
-%%     receive
-%% 	{ok,Val} ->
-%% 	    logger:debug("get register: ~p: ~p",[Name,Val]),
-%% 	    Val
-%%     after
-%% 	TimeOutLoad ->
-%% 	    logger:error("get register failed: ~p: Timeout",[Name]),
-%% 	    timeout
-%%     end.
+				logger:error("get argument failed, mem_access_short_hans, global is not known ~p",[G]),
+				throw({"get argument failed, mem_access_short_hans, global is not known",G})
+			end;
+		    _R ->
+			logger:error("get_argument failed: ~p",[_R]),
+			Acc++[error]
+		end
+	end,
+    lists:foldl(F, [],LL).
 
 save_to_location(PIDM, DA, Val,Globals) ->
     logger:info("save to location ~p,~p",[DA,Val]),
@@ -212,20 +244,20 @@ save_to_location(PIDM, DA, Val,Globals) ->
 	    logger:debug("save_to_location, ismember of registers: ~p,~p",[DA,Val]),
 	    save_register(PIDM,DA,Val);
 	_ ->
-	    logger:info("try save in memory (reladdr): ~p: ~p",[DA,Val]),
+	    logger:debug("try save in memory (reladdr): ~p: ~p",[DA,Val]),
 	    case rvsmemory:derive_address(PIDM,Globals,DA) of
 		{absval,Add} -> 
-		    logger:info("try save in memory (absaddr): ~p: ~p",[Add,Val]),
+		    logger:debug("try save in memory (absaddr): ~p: ~p",[Add,Val]),
 		    if Val =:= "zero" ->
-			    logger:info("!!!!! store Val: zero at ~p",[Add]),
+			    logger:debug("!!!!! store Val: zero at ~p",[Add]),
 			    save_memory(PIDM,Add,0);
 		       true ->
-			    logger:info("!!!!! store ~p at ~p",[Val,Add]),
+			    logger:debug("!!!!! store ~p at ~p",[Val,Add]),
 			    save_memory(PIDM,Add, Val)
 		    end;
 		{"%lo",TVal} -> 
-		    logger:notice("rvscorehw,save_to_location: %lo(~p)(Reg) is shorthand: ~p",
-				  [TVal,DA]),
+		    logger:info("rvscorehw,save_to_location: %lo(~p)(Reg) is shorthand: ~p",
+				[TVal,DA]),
 		    Addd = setup_value(PIDM,DA,TVal),
 		    save_memory(PIDM,Addd,Val);
 		_R -> logger:error("rvscorehw,save_to_location: ~p not supported yet",[_R])
@@ -337,16 +369,6 @@ registers(Registers) ->
 	    timeout
     end.
 
-do_op_test1() ->
-    PIDReg = spawn(rvscorehw,registers,[init,32,0]),
-    PIDM = maps:from_list([{registers,PIDReg}]),
-    save_register(PIDM,"a20",17),
-    do_op(PIDM,["li","a20","57"],"a20",calcop,[57],{#{},#{".L3" => 57}}),
-    Val = load_register(PIDM,"a20"),
-    logger:notice("a20: ~p",[Val]),
-    %%?assertEqual(6,do_op(PIDM,["blz","a20",".L3"],"a1",branchop,["a20"],{#{},#{".L3" => 57}}})),
-    rvsmain:kill([PIDReg]).
-
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").
 store_load_register_test() ->
@@ -418,21 +440,12 @@ opstypetest_test() ->
     ?assertEqual({"a1",["a2","a3"],calcop},opstype(["mul","a1","a2","a3"])),
     ?assertEqual({".L3",["a1"],branchop},opstype(["bnez","a1",".L3"])),
     ?assertEqual({".L2",["a1","a2"],branchop},opstype(["bge","a1","a2",".L2"])),
-    ?assertEqual({nop,nop,nop},opstype(["fritz","a1","a2",".L2"])).
-do_op_test() ->
-    %% TimeOut0 = 10,
-    %% receive
-    %% 	_R ->
-    %% 	    logger:notice("something still in pipeline ~p",[_R]),
-    %% 	    ok
-    %% after
-    %% 	TimeOut0 -> timeout
-    %% end, 
+    ?assertEqual({nop,nop,nop},opstype(["fritz","a1","a2",".L2"])),
     PIDReg = spawn(rvscorehw,registers,[init,32,0]),
     PIDMem = spawn(rvsmemory,memory,[init,4000,0]),
     PIDM = maps:from_list([{registers,PIDReg},{memory,PIDMem}]),
     save_register(PIDM,"a20",17),
-    Globals = #{"buffer" => #{address => 400}},
+    Globals = #{"buffer" => #{addr => 400}},
     ok = do_op(PIDM,["li","a20","57"],"a20",calcop,[57],{Globals,#{".L3" => 57}}),
     ?assertEqual(57,load_register(PIDM,"a20")),
     save_memory(PIDM,400,123),
@@ -452,19 +465,24 @@ get_arguments_test() ->
     PIDMem = spawn(rvsmemory,memory,[init,4000,0]),
     PIDM = maps:from_list([{registers,PIDReg},{memory,PIDMem}]),
     save_memory(PIDM,400,127),
-    Globals = #{"buffer" => #{address => 400}},
+    Globals = #{"buffer" => #{addr => 400}},
     save_register(PIDM,"a21",400),
     ?assertEqual(400,load_register(PIDM,"a21")),
     Args = get_arguments(PIDM,["0(a21)","%lo(buffer+12)"],Globals),
     ?assertEqual([127,412],Args),
     rvsmain:kill([PIDReg,PIDMem]),
     ok.
-%% do_op_test() ->
-%%     PIDReg = spawn(rvscorehw,registers,[init,32,0]),
-%%     PIDM = maps:from_list([{registers,PIDReg}]),
-%%     do_op(PIDM,["li","a20","57"],"a20",calcop,[57],{#{},#{".L3" => 57}}),
-%%     ?assertEqual(57,load_register(PIDM,"a20")),
-%%     save_register(PIDM,"a20",17),
-%%     %%?assertEqual(6,do_op(PIDM,["blz","a20",".L3"],"a1",branchop,["a20"],{#{},#{".L3" => 57}}})),
-%%     rvsmain:kill([PIDReg]).
+control_failure_test() ->
+    PID = spawn(fun() -> ok end),
+    control(#{main => PID},[],{},[],1),
+    control(#{main => PID},[{0,["nop"]},{2,["nop"]}],{},[],1),
+    ok.
+do_op_failures_test() ->
+    ok = do_op(#{},["fritz","7","4"],"4",calcop,["7"],{#{},{}}),
+    ?assertException(throw,_,do_op(#{},["bge","7","3",".L3"],".L3",branchop,["7","3"],{#{},#{}})),
+    ok = do_op(#{},["nop"],"nop",calcop,[],{}).
+do_operation_dummy_test()->
+    ok = do_operation(#{},["fritz"],{#{},{}},0).
+do_save_to_location_test()->
+    ok=save_to_location(#{},"fi%(fritz)",0,#{"fritz" => #{addr => 7}}).
 -endif.

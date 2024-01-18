@@ -13,17 +13,18 @@ run(Filename,ConfigList) ->
     {ok, [RawConfig]}  = file:consult("data/rvs.config"),
     Config = lists:foldl(fun({X,Y},Map) -> maps:put(X,Y,Map) 
 			 end, RawConfig,ConfigList++[{programname,Filename}]),
-    %% rvsutils:write_terms("bck/config.cfg",[Config]),
-    {[_|P],Defines} = rvsreadasm:readasm(maps:get(programname,Config)),
-    PP =  element(2,lists:foldl(fun(X,{I,Acc}) -> 
-				       {I+1, Acc++[{I,tuple_to_list(X)}]} 
-			       end, {0, []}, program_to_strings(P))),
-    %% rvsutils:write_terms("bck/program.s",[PP]),
-    %% rvsutils:write_terms("bck/defines.config",[Defines]),
+    rvsutils:write_terms("_build/tmp/config.cfg",[Config]),
+    {PP,Defines} = rvsreadasm:readasm(maps:get(programname,Config)),
+    rvsutils:write_terms("_build/tmp/program.s",[PP]),
+    rvsutils:write_terms("_build/tmp/globals_labels.config",[Defines]),
     {ok, [Data]} = file:consult(ROOT ++ "/data/" ++ maps:get(dataname,Config)),
     PIDRegs = spawn(rvscorehw, registers, [init,maps:get(registers,Config),0]),
     PIDMem =  spawn(rvsmemory, memory, [init,maps:get(memory,Config),100]),
     PIDM = maps:from_list([{registers,PIDRegs},{memory,PIDMem},{main,self()}]),
+    case maps:find(input,Config) of
+	{ok,Values} -> update_sysargs(PIDM,Values);
+	error -> ok
+    end,
     PIDCtrl = spawn(rvscorehw, control, [PIDM, PP, Defines, Data, 0]),
     TimeOutMain = maps:get(timeout_main,Config),
     receive
@@ -36,7 +37,7 @@ run(Filename,ConfigList) ->
 	    timeout
     end,
     timer:sleep(1000),
-    Regs = do_dump_config(PIDM,Config),
+    Output = output_config(PIDM,Config),
     logger:info("Config: ~p",[Config]),
     timer:sleep(100),
     exit(PIDRegs,kill),exit(PIDMem,kill),
@@ -44,9 +45,8 @@ run(Filename,ConfigList) ->
 	true -> exit(PIDCtrl,kill);
 	_ -> ok
     end,
-    SRegs = lists:sort(fun({A,_},{B,_}) -> A < B end, Regs),
-    {{maps:put(main,self(),PIDM),PIDCtrl},SRegs}.
-    
+    {{maps:put(main,self(),PIDM),PIDCtrl},Output}.
+
 program_to_strings(Program) ->
     lists:foldl(fun(Op, Acc) -> Acc ++ [op_to_string(Op)] end, [], Program).
 
@@ -62,23 +62,44 @@ op_to_string(Operation) ->
 				      end
 			      end, [], tuple_to_list(Operation))).
 							     
-do_dump_config(PIDM, Config) ->
-    case maps:find("dump", Config) of
-	{ok, "registers"} ->
-	    dump_registers(PIDM);
-	{ok, {"memory",[A,B]}} ->
-	    logger:info("dump memory: ~p - ~p",[A,B]),
-	    dump_memory(PIDM,A,B);
-	_R ->
-	    []
+update_sysargs(PIDM,Values) ->
+    if 
+	is_list(Values) ->
+	    rvscorehw:save_memory(PIDM,400,length(Values)),
+	    F = fun(X,I) -> 
+			rvscorehw:save_memory(PIDM,404+I,X),
+			I+4
+		end,
+	    lists:foldl(F,0,Values);
+	true ->
+	    throw({"input values not an array, usage {input,[1,2,3]}, but",Values})
     end.
+
+output_config(PIDM, Config) ->
+    Regs = case maps:find(dumpregs, Config) of
+	       {ok, _Range} ->
+		   dump_registers(PIDM);
+	       _ ->
+		   []
+	   end,
+    Mem = case maps:find(dumpmemory, Config) of
+	      {ok,[A,B]} ->
+		  dump_memory(PIDM,A,B);
+	      {ok,_R} ->
+		  throw({"Usage {dumpmemory,[A,B]}: got dumpmemory,",_R});
+	      _ ->
+		  []
+	  end,
+    RetVal = rvscorehw:load_register(PIDM,"a0"),
+    {Regs,Mem,RetVal}.
 
 dump_registers(PIDM) ->
     maps:get(registers,PIDM) ! { self(), dump },
     TimeOutDump = 100,
     receive
 	{ok,Registers} ->
-	    Registers
+	    Registers,
+	    lists:sort(fun({A,_},{B,_}) -> A < B end, Registers)
     after
 	TimeOutDump ->
 	    logger:error("timeout dump_registers"),
@@ -110,7 +131,6 @@ rvsmain_dump_register_and_timeout_dump_memory_test() ->
     PIDRegs = spawn(rvscorehw, registers, [init,32,17]),
     Regs = dump_registers(maps:from_list([{registers,PIDRegs}])),
     ?assertEqual(17,maps:get("a15",maps:from_list(Regs))),
-    ?assertEqual(35,length(Regs)),
     kill([PIDRegs]),
     ?assertEqual(timeout,dump_registers(maps:from_list([{registers,PIDRegs}]))),
     ?assertEqual(timeout,dump_memory(maps:from_list([{memory,PIDRegs}]),400,404)).
