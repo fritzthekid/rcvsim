@@ -81,22 +81,30 @@ do_operation(PIDM, Op, Defines,PC) ->
 
 opstype(Op) ->
 %% 
-
-    IsMCalOp=lists:member(hd(Op),["addi","add","sub","mul","rem","slli","srai","neg",
-				  "slt","sgt","sle","sge","seq","sne","slti","sgti","slei","sgei","seqi","snei",
-				  "load","lui","li","lw","mw","mv","andi", "xori", "ori"]),
-    IsMBraOp=lists:member(hd(Op),["beqz","bnez","blez","bltz","bgtz","bgez","bgt",
-				  "bne","beq","blt","ble","bge","bgt"]),
-    case {IsMCalOp,IsMBraOp} of
-	{true,false} ->
-	    [_|[H|T]] = Op,
-	    {H,T,calcop};
-	{false,true} ->
-	    [_|Rest] = Op,
-	    [H|T] = lists:reverse(Rest),
-	    {H,lists:reverse(T),branchop};
-	_ ->
-	    {nop,nop,nop}
+    %% IsMCalOp=lists:member(hd(Op),["addi","add","sub","mul","rem","slli","srai","neg",
+    %% 				  "slt","sgt","sle","sge","seq","sne","slti","sgti","slei","sgei","seqi","snei",
+    %% 				  "load","lui","li","lw","mw","mv","andi", "xori", "ori"]),
+    %% IsMBraOp=lists:member(hd(Op),["beqz","bnez","blez","bltz","bgtz","bgez","bgt",
+    %% 				  "bne","beq","blt","ble","bge","bgt"]),
+    case length(Op) > 0 of
+	true ->
+	    case length(hd(Op)) > 0 of
+		true ->
+		    case hd(hd(Op)) of
+			98 ->
+			    [_|Rest] = Op,
+			    [H|T] = lists:reverse(Rest),
+			    {H,lists:reverse(T),branchop};
+			106 ->
+			    [_,Target] = Op,
+			    {"xx",[Target],jumpop};
+			_ ->
+			    [_|[H|T]] = Op,
+			    {H,T,calcop}
+		    end;
+		_ -> {nop,nop,nop}
+	    end;
+	_ -> {nop,nop,nop}
     end.		     
 
 do_return(PIDM,Defines,PC) ->
@@ -115,8 +123,7 @@ do_op(PIDM,Op,DA,OpType,ArgsList,{Globals,Labels}) ->
 	{error,_} ->
 	    logger:notice("do_op: operation ~p unknown, do nop",[Op]);
 	{_,calcop} -> 
-	    save_to_location(PIDM, DA, PatResult,Globals),
-            ok;
+	    save_to_location(PIDM, DA, PatResult,Globals);
 	{_,branchop} ->
 	    case maps:is_key(lists:last(Op),Labels) of
 		true ->
@@ -192,6 +199,62 @@ do_pat(Op,Args) ->
 get(N,L) ->
     hd(lists:sublist(L,N,1)).
 
+%% do_pat(Op,A,B) ->
+%%     logger:debug("do_pat(~p,~p,~p)",[Op,A,B]),
+%%     case hd(Op) of
+%% 	"add" -> A+B;
+%% 	"sub" -> A-B;
+%% 	"mul" -> A*B;
+%% 	"neg" -> -1*A;
+%% 	"rem" -> A rem B;
+%% 	"bsl" -> A bsl B;
+%% 	"bsr" -> A bsr B;
+%% 	"addi" -> (A+B) rem (1 bsl 12); %% same as %lo(global)
+%% 	"lui" -> (A bsr 12) bsl 12;                    %% same as %hi(global)
+%% 	"li" -> A;
+%% 	"load" -> A;
+%% 	"slli" -> A bsl B;
+%% 	"srai" -> A bsr B;
+%% 	"sge" -> Is = A>=B, if Is -> 1; true -> 0 end;
+%% 	"sgei" -> Is = A>=B, if Is -> 1; true -> 0 end;
+%% 	"sle" -> Is = A=<B, if Is -> 1; true -> 0 end;
+%% 	"slei" -> Is = A=<B, if Is -> 1; true -> 0 end;
+%% 	"sgt" -> Is = A>B, if Is -> 1; true -> 0 end;
+%% 	"sgti" -> Is = A>B, if Is -> 1; true -> 0 end;
+%% 	"slt" -> Is = A<B, if Is -> 1; true -> 0 end;
+%% 	"slti" -> Is = A<B, if Is -> 1; true -> 0 end;
+%% 	"seq" -> Is = A=:=B, if Is -> 1; true -> 0 end;
+%% 	"sne" -> Is = A=/=B, if Is -> 1; true -> 0 end;
+%% 	"seqi" -> Is = A=:=B, if Is -> 1; true -> 0 end;
+%% 	"snei" -> Is = A=/=B, if Is -> 1; true -> 0 end;
+%% 	"lw" -> A;
+%% 	"mv" -> A;
+%% 	"mw" -> A;
+%% 	"sw" -> A;
+%% 	"beqz" -> A =:= 0;
+%% 	"bnez" -> A =/= 0;
+%% 	"blez" -> A =< 0;
+%% 	"bltz" -> A < 0;
+%% 	"bgtz" -> A > 0;
+%% 	"bgez" -> A >= 0;
+%% 	"bne" -> A =/= B;
+%% 	"beq" -> A =:= B;
+%% 	"bge" -> A >= B;
+%% 	"bgt" -> A > B;
+%% 	"ble" -> A =< B;
+%% 	"blt" -> A < B;
+%% 	"andi" -> A band B;
+%% 	"ori" -> A bor B;
+%% 	"xori" -> A bxor B;
+%% 	%%"bgtu" -> A =< B;
+%% 	%%"bleu" -> A =< B;
+%% 	_Default ->
+%% 	    error
+%%     end.
+
+%%get(N,L) ->
+%⅜    hd(lists:sublist(L,N,1)).
+
 get_arguments(PIDM,LL,Globals) ->
     logger:debug("get_arguments: ~p",[LL]),
     F = fun(A,Acc) ->
@@ -234,7 +297,14 @@ get_arguments(PIDM,LL,Globals) ->
 			Acc++[error]
 		end
 	end,
-    lists:foldl(F, [],LL).
+    Args = lists:foldl(F, [],LL),
+    logger:debug("get_arguments: args ~p",[Args]),
+    {_A,_B} = case length(Args) of
+	1 -> { hd(Args),  0};
+	2 -> [A,B] = Args, { A,B }; 
+	_R -> throw({"get argument fails (length different from 1 or 2):",_R})
+    end,
+    Args.
 
 save_to_location(PIDM, DA, Val,Globals) ->
     logger:info("save to location ~p,~p",[DA,Val]),
@@ -440,7 +510,7 @@ opstypetest_test() ->
     ?assertEqual({"a1",["a2","a3"],calcop},opstype(["mul","a1","a2","a3"])),
     ?assertEqual({".L3",["a1"],branchop},opstype(["bnez","a1",".L3"])),
     ?assertEqual({".L2",["a1","a2"],branchop},opstype(["bge","a1","a2",".L2"])),
-    ?assertEqual({nop,nop,nop},opstype(["fritz","a1","a2",".L2"])),
+    ?assertEqual({nop,nop,nop},opstype([])),
     PIDReg = spawn(rvscorehw,registers,[init,32,0]),
     PIDMem = spawn(rvsmemory,memory,[init,4000,0]),
     PIDM = maps:from_list([{registers,PIDReg},{memory,PIDMem}]),
@@ -481,8 +551,6 @@ do_op_failures_test() ->
     ok = do_op(#{},["fritz","7","4"],"4",calcop,["7"],{#{},{}}),
     ?assertException(throw,_,do_op(#{},["bge","7","3",".L3"],".L3",branchop,["7","3"],{#{},#{}})),
     ok = do_op(#{},["nop"],"nop",calcop,[],{}).
-do_operation_dummy_test()->
-    ok = do_operation(#{},["fritz"],{#{},{}},0).
 do_save_to_location_test()->
     ok=save_to_location(#{},"fi%(fritz)",0,#{"fritz" => #{addr => 7}}).
 -endif.
