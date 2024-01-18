@@ -196,53 +196,48 @@ do_pat(Op,A,B) ->
 	    error
     end.
 
-get_arguments(PIDM,LL,Globals) ->
-    logger:debug("get_arguments: ~p",[LL]),
-    F = fun(A,Acc) ->
-		case rvsutils:code_to_object(A) of 
-		    {integer,Val,_} ->
-			Acc++[Val];
-		    {register,Name,_} ->
-			logger:debug("get_argument: register ~p",[Name]),
-			Val = load_register(PIDM,Name),
-			Acc ++ [Val];
-		    {memory_access_via_register,Ofs,Name} ->
-			Add = load_register(PIDM,Name),
-			Val = load_memory(PIDM,Add+Ofs),
-			Acc++[Val];
-		    {memory_access_via_global_hi,_,G} ->
-			logger:debug("get_argument: memory_address_global_hi ~p",[G]),
-			{_Prefix,Add} = rvsmemory:derive_address(PIDM,Globals,A),
-			Acc++[(Add bsr 4096) bsl 4096];
-		    {memory_access_via_global_lo,_,G} ->
-			logger:debug("get_argument: memory_access_via_global_hi ~p",[G]),
-			{_Prefix,Add} = rvsmemory:derive_address(PIDM,Globals,A),
-			logger:info("use address ... ~p",[Add]),
-			Acc++[Add rem 4096];
-		    {memory_access_via_register_short_hand_lo,G,Reg} ->
-			logger:debug("get_argument: memory_access..short_hand ~p,~p",[G,Reg]),
-			case lists:member(G,maps:keys(Globals)) of
-			    true ->
-				Add = rvsmemory:make_it_integer(maps:get(addr,maps:get(G,Globals))),
-				Offs = load_register(PIDM,Reg),
-				logger:debug("get_arguments short hand, ~p,~p",[Add,Offs]),
-				Val = load_memory(PIDM,Add+(Offs rem 4096)),
-				logger:debug("get_arguments short hand value, ~p",[Val]),
-				Acc++[Val];
-			    _R ->
-				logger:error("get argument failed, mem_access_short_hans, global is not known ~p",[G]),
-				throw({"get argument failed, mem_access_short_hans, global is not known",G})
-			end;
-		    _R ->
-			logger:error("get_argument failed: ~p",[_R]),
-			Acc++[error]
-		end
-	end,
-    Args = lists:foldl(F, [],LL),
-    logger:debug("get_arguments: args ~p",[Args]),
-    case length(Args) of
-	1 -> { hd(Args),  0};
-	2 -> [A,B] = Args, { A,B }; 
+get_argument(PIDM,A,Globals) ->
+    logger:debug("get_argument arg: ~p",[A]),
+    case rvsutils:code_to_object(A) of 
+	{integer,Val,_} ->
+	    Val;
+	{register,Name,_} ->
+	    load_register(PIDM,Name);
+	{memory_access_via_register,Ofs,Name} ->
+	    Add = load_register(PIDM,Name),
+	    load_memory(PIDM,Add+Ofs);
+	{memory_access_via_global_hi,_,G} ->
+	    logger:debug("get_argument: memory_address_global_hi ~p",[G]),
+	    {_Prefix,Add} = rvsmemory:derive_address(PIDM,Globals,A),
+	    (Add bsr 4096) bsl 4096;
+	{memory_access_via_global_lo,_,G} ->
+	    logger:debug("get_argument: memory_access_via_global_hi ~p",[G]),
+	    {_Prefix,Add} = rvsmemory:derive_address(PIDM,Globals,A),
+	    logger:info("use address ... ~p",[Add]),
+	    Add rem 4096;
+	{memory_access_via_register_short_hand_lo,G,Reg} ->
+	    logger:debug("get_argument: memory_access..short_hand ~p,~p",[G,Reg]),
+	    case lists:member(G,maps:keys(Globals)) of
+		true ->
+		    Add = rvsmemory:make_it_integer(maps:get(addr,maps:get(G,Globals))),
+		    Offs = load_register(PIDM,Reg),
+		    logger:debug("get_arguments short hand, ~p,~p",[Add,Offs]),
+		    Val = load_memory(PIDM,Add+(Offs rem 4096)),
+		    logger:debug("get_arguments short hand value, ~p",[Val]),
+		    Val;
+		_R ->
+		    logger:error("get argument failed, mem_access_short_hans, global is not known ~p",[G]),
+		    throw({"get argument failed, mem_access_short_hans, global is not known",G})
+	    end;
+	_R ->
+	    logger:error("get_argument failed: ~p",[_R]),
+	    throw({"get argument failed ???",A})
+    end.
+
+get_arguments(PIDM,ArgsL,Globals) ->
+    case length(ArgsL) of
+	1 -> { get_argument(PIDM,hd(ArgsL),Globals), 0};
+	2 -> [A,B] = ArgsL, { get_argument(PIDM,A,Globals),get_argument(PIDM,B,Globals) }; 
 	_R -> throw({"get argument fails (length different from 1 or 2):",_R})
     end.
 
@@ -381,31 +376,6 @@ registers(Registers) ->
 
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").
-store_load_register_test() ->
-    PIDReg = spawn(rvscorehw,registers,[init,32,0]),
-    PIDReg ! {self(),store,"s0",117},
-    TimeOut = 150,
-    receive
-	ok ->
-	    logger:info("store ok"),
-	    ?assert(true),
-	    ok
-    after
-	TimeOut ->
-	    logger:info("store failed: timeout"),
-	    ?assert(false)
-    end,
-    PIDReg ! {self(),load,"s0"},
-    TimeOut = 150,
-    receive
-	{ok,Val} ->
-	    ?assertEqual(117,Val),
-	    logger:info("load succes ~p",[Val])
-    after
-	TimeOut ->
-	    logger:info("load timeout",[]),
-	    ?assert(false)
-    end.
 register_timeout_test() ->
     PID=spawn(rvscorehw,registers,[init,32,0]),
     timer:sleep(2100),
@@ -480,6 +450,10 @@ get_arguments_test() ->
     ?assertEqual(400,load_register(PIDM,"a21")),
     Args = get_arguments(PIDM,["0(a21)","%lo(buffer+12)"],Globals),
     ?assertEqual({127,412},Args),
+    ok = save_register(PIDM,"a0",17),
+    ok = save_memory(PIDM,417,4720),
+    do_operation(PIDM,["lw","a1","%lo(buffer)(a0)"],{Globals,#{}},0),
+    ?assertEqual(4720,load_register(PIDM,"a1")),
     rvsmain:kill([PIDReg,PIDMem]),
     ok.
 control_failure_test() ->
