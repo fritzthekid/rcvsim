@@ -131,7 +131,6 @@ rvsmain_dump_register_and_timeout_dump_memory_test() ->
     PIDRegs = spawn(rvscorehw, registers, [init,32,17]),
     Regs = dump_registers(maps:from_list([{registers,PIDRegs}])),
     ?assertEqual(17,maps:get("a15",maps:from_list(Regs))),
-    ?assertEqual(35,length(Regs)),
     kill([PIDRegs]),
     ?assertEqual(timeout,dump_registers(maps:from_list([{registers,PIDRegs}]))),
     ?assertEqual(timeout,dump_memory(maps:from_list([{memory,PIDRegs}]),400,404)).

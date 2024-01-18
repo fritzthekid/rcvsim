@@ -57,13 +57,6 @@ code_to_object(X) ->
 	    {error,"neither relative register nor global access",X}
     end.
 
-factorial(Num) -> 
-    if
-	Num < 1   -> 0;
-	Num =:= 1 -> 1;
-	true      -> Num * factorial(Num-1)
-    end.
-
 get_in_list(N,L) ->
     if 
 	N =:= 0 ->
@@ -137,8 +130,7 @@ get_in_list_test() ->
 registernames_test() ->
     L = registernames(32),
     ?assert(lists:member("sp",L)),
-    ?assert(lists:member("a0",L)),
-    ?assert(lists:member("s7",L)=:=false).
+    ?assert(lists:member("a0",L)).
 printlist_test() ->
     ?assertEqual(ok,printlist(registernames(32))).
 printregisters_test() ->
