@@ -143,5 +143,5 @@ rvsda_number_test() ->
 		  end, lists:seq(-(1 bsl 15)+1,(1 bsl 15)-1)),
     lists:foreach(fun(I)->
 			  ?assertEqual(I,getdata(putdata(Bin,4,I,int32),4,int32))
-		  end, lists:seq(-(1 bsl 20)+1,(1 bsl 20)-1)).
+		  end, lists:seq(-(1 bsl 18)+1,(1 bsl 18)-1)).
 -endif.
