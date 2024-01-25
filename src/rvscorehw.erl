@@ -45,17 +45,12 @@ do_operation(PIDM, Op, Defines,PC) ->
 	    logger:notice("exit normally"),
 	    { ok, exit };
 	"ret" ->
-	    logger:info("rvscorehw,do_operation: return"),
-	    do_return(PIDM,Defines,PC);
+	    do_operation(PIDM,["jr","ra"],Defines,PC);
 	"jr" -> %% jump register
 	    {Target,_} = get_arguments(PIDM,[lists:last(Op)],Globals),
-	    logger:info("rvscorehw do_operation: jump target ~p ~p",[hd(Op),Target]),
-	    %%Target = lists:last(Op),
-	    {ok,jump,Target}; %%maps:get(Target,Labels,-1)};
+	    {ok,jump,Target};
 	"j" -> %% jump label
-	    %%Target = get_arguments(PIDM,[lists:last(Op)],Globals),
 	    Target = lists:last(Op),
-	    logger:info("rvscorehw do_operation: jump target ~p num ~p",[Target,maps:get(Target,Labels,"not_found")]),
 	    {ok,jump,maps:get(Target,Labels,-1)};
 	"call" ->
 	    ok = save_register(PIDM,"ra",PC+1),
@@ -80,39 +75,23 @@ do_operation(PIDM, Op, Defines,PC) ->
     end.
 
 opstype(Op) ->
-%% 
-    %% IsMCalOp=lists:member(hd(Op),["addi","add","sub","mul","rem","slli","srai","neg",
-    %% 				  "slt","sgt","sle","sge","seq","sne","slti","sgti","slei","sgei","seqi","snei",
-    %% 				  "load","lui","li","lw","mw","mv","andi", "xori", "ori"]),
-    %% IsMBraOp=lists:member(hd(Op),["beqz","bnez","blez","bltz","bgtz","bgez","bgt",
-    %% 				  "bne","beq","blt","ble","bge","bgt"]),
-    case length(Op) > 0 of
-	true ->
-	    case length(hd(Op)) > 0 of
-		true ->
-		    case hd(hd(Op)) of
-			98 ->
-			    [_|Rest] = Op,
-			    [H|T] = lists:reverse(Rest),
-			    {H,lists:reverse(T),branchop};
-			106 ->
-			    [_,Target] = Op,
-			    {"xx",[Target],jumpop};
-			_ ->
-			    [_|[H|T]] = Op,
-			    {H,T,calcop}
-		    end;
-		_ -> {nop,nop,nop}
-	    end;
-	_ -> {nop,nop,nop}
-    end.		     
-
-do_return(PIDM,Defines,PC) ->
-    logger:notice("do_return"),
-    do_operation(PIDM,["jr","ra"],Defines,PC).
+    try 
+	case hd(hd(Op)) of
+	    98 ->
+		[_|Rest] = Op,
+		[H|T] = lists:reverse(Rest),
+		{H,lists:reverse(T),branchop};
+	    106 ->
+		[_,Target] = Op,
+		{"xx",[Target],jumpop};
+	    _ ->
+		[_|[H|T]] = Op,
+		{H,T,calcop}
+	end
+	   catch error:_ -> {nop,nop,nop}
+    end.
 
 do_op(_,["nop"],_,_,_,_) ->
-    logger:notice("rvscorehw:do_op(nop)"),
     ok;
 do_op(PIDM,Op,DA,OpType,ArgsList,{Globals,Labels}) ->
     logger:debug("do_op: Op ~p",[Op]),

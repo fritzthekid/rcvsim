@@ -13,7 +13,6 @@ run(Filename,ConfigList) ->
     {ok, [RawConfig]}  = file:consult("data/rvs.config"),
     Config = lists:foldl(fun({X,Y},Map) -> maps:put(X,Y,Map) 
 			 end, RawConfig,ConfigList++[{programname,Filename}]),
-    rvsutils:write_terms("_build/tmp/config.cfg",[Config]),
     {PP,Defines} = rvsreadasm:readasm(maps:get(programname,Config)),
     rvsutils:write_terms("_build/tmp/program.s",[PP]),
     rvsutils:write_terms("_build/tmp/globals_labels.config",[Defines]),

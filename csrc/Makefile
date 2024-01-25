@@ -12,5 +12,5 @@ $(ASDIR)/%.s: %.c $(INCLUDES) Makefile
 	$(CC) -S ${CCOPTIONS} -o $@ $<
 
 main: main.c test2.c
-	gcc -o main -D'WITHMAIN' main.c test2.c
+	gcc -o main -D'__NOTRISCV__' main.c test2.c
 
