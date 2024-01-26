@@ -47,7 +47,7 @@ lenoftype(Type) ->
 
 bintonum(Bin,Type) ->
     Len = lenoftype(Type),
-    Bytes = get(Bin,0,Len),
+    Bytes = getlist(Bin,0,Len),
     case Type of
 	char -> hd(Bytes);
 	uint8 -> hd(Bytes);
@@ -70,18 +70,16 @@ bintonum(Bin,Type) ->
 	
 getdata(Bin,Pos,Type) ->
     Len = lenoftype(Type),
-    Bytes = get(Bin,Pos,Len),
+    Bytes = getlist(Bin,Pos,Len),
     bintonum(binary:list_to_bin(Bytes),Type).
-
-getdatax(Bin,Pos,Type) ->
-    Len = byte-size(Bin)-Pos,
-    <<_:Pos,NBin:Len>> = Bin,
-    bintonum(NBin,Type).
 
 get(Bin,Pos,Len) ->
     TLen = byte_size(Bin)-Pos-Len,
     <<_H:Pos/binary,Val:Len/binary,_T:TLen/binary>> = Bin,
-    binary:bin_to_list(Val).
+    Val.
+
+getlist(Bin,Pos,Len) ->
+    binary:bin_to_list(get(Bin,Pos,Len)).
 
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").

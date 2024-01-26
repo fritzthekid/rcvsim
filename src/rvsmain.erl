@@ -120,7 +120,7 @@ dump_memory(PIDM, A, E) ->
 	timeout -> timeout;
 	_ -> 
 	    lists:foldl(fun(V,Acc)->
-				Acc ++ [{V,array:get(V,Memory)}]
+				Acc ++ [{V,rvsda:getdata(Memory,V,int32)}]
 			end, [], lists:seq(A,E))
     end.
 
