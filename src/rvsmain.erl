@@ -64,9 +64,9 @@ op_to_string(Operation) ->
 update_sysargs(PIDM,Values) ->
     if 
 	is_list(Values) ->
-	    rvscorehw:save_memory(PIDM,400,length(Values)),
+	    rvscorehw:save_memory(PIDM,4000,length(Values)),
 	    F = fun(X,I) -> 
-			rvscorehw:save_memory(PIDM,404+I,X),
+			rvscorehw:save_memory(PIDM,4004+I,X),
 			I+4
 		end,
 	    lists:foldl(F,0,Values);

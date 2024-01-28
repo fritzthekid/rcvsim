@@ -295,9 +295,12 @@ load_register(PIDM,Reg)->
 	    throw({"load_register Reg timeout",Reg})
     end.
 
-save_memory(PIDM,Add,Val)->
+save_memory(PIDM,Add,Val) ->
+    save_memory(PIDM,Add,Val,int32).
+
+save_memory(PIDM,Add,Val,Type)->
     logger:info("rvscorehw,save_memory: ~p -> ~p",[Val,Add]),
-    maps:get(memory,PIDM) ! {self(),store,Add,rvsda:numtobin(Val,int32)},
+    maps:get(memory,PIDM) ! {self(),store,Add,rvsda:numtobin(Val,Type)},
     TimeOut = 100,
     receive
 	ok -> ok;
@@ -309,10 +312,13 @@ save_memory(PIDM,Add,Val)->
     end.
 
 load_memory(PIDM,Add)->
-    maps:get(memory,PIDM) ! {self(),load,Add,rvsda:lenoftype(int32)},
+    load_memory(PIDM,Add,int32).
+
+load_memory(PIDM,Add,Type)->
+    maps:get(memory,PIDM) ! {self(),load,Add,rvsda:lenoftype(Type)},
     TimeOut = 100,
     receive
-	{ok, Val} -> rvsda:bintonum(Val,int32)
+	{ok, Val} -> rvsda:bintonum(Val,Type)
     after
 	TimeOut ->
 	    logger:error("rvscorehw,load_memory, ~p",[Add]),

@@ -11,13 +11,13 @@
 #ifndef __NOTRISC__
 #include <stdint-gcc.h>
 asm (".text\n.start:\n\t"
-     "li sp,300\n\t"
+     "li sp,3000\n\t"
      "j  loader\n\t");
 
 extern int32_t sysargs[100];
 asm (".text\n\t"
      ".globl\tsysargs\n\t"
-     ".addr\tsysargs, 400\n\t");
+     ".addr\tsysargs, 4000\n\t");
 
 int32_t main(int32_t argc, int32_t *argv);
 

@@ -11,13 +11,13 @@ rvsmain_run(Filename,ConfigList) ->
 		      end,
     timer:sleep(1000),
     IsAliveRegs = is_process_alive(maps:get(registers,PIDM)),
-    IsAlieMem = (is_process_alive(maps:get(memory,PIDM))=:=true),
+    IsAliveMem = (is_process_alive(maps:get(memory,PIDM))=:=true),
     if IsAliveRegs-> 
 	    ?assert(false); 
        true -> 
 	    ?assert(true)
     end,
-    if IsAlieMem ->
+    if IsAliveMem ->
 	    ?assert(false); %%true; 
        true -> 
 	    ?assert(true) %%false 
@@ -32,11 +32,6 @@ rvsmain_run(Filename,ConfigList) ->
 	    rvsmain:kill([_PIDCtrl]);
        true -> ok
     end,
-    %%?assert(IsAliveRegs=:=false),
-    %%?assert(isAliveMem=:=false),
-    %%ssert(is_process_alive(maps:get(memory,PIDM))),
-    %%ssert(is_process_alive(PIDCtrl)),
-    %%lists:foreach(fun(PID)->?assert((is_process_alive(PID)=:=false)) end, PIDL).
     ok.
 rvsmain_run_test() ->
     rvsmain_run("",[]).

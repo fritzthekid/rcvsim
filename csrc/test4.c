@@ -20,7 +20,7 @@ extern int32_t buffer[];
 #ifndef WITHMAIN
 asm (".text\n\t"
      ".globl\tbuffer\n\t"
-     ".addr\tbuffer, 500\n\t");
+     ".addr\tbuffer, 5000\n\t");
 #endif
 
 int32_t fibonacci(int32_t number) {
