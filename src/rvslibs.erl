@@ -43,3 +43,24 @@ stdlib_strtol(PIDM,_Op,_Defines,_PC) ->
     rvscorehw:save_register(PIDM,"a0",Val),
     ok.
 
+-ifdef(REBARTEST).
+-include_lib("eunit/include/eunit.hrl").
+strtol_test() ->
+    PIDMem = spawn(rvsmemory,memory,[init,40]),
+    PIDReg = spawn(rvscorehw,registers,[init,32,0]),
+    PIDM = #{registers => PIDReg, memory => PIDMem},
+    rvscorehw:save_register(PIDM,"a0",0),
+    lists:foldl(fun(C,I) ->
+			rvscorehw:save_memory(PIDM,I,C,char),
+			I+1
+		end, 0, "4711"),
+    PIDMem ! {self(),dump},
+    receive
+	{ok,_Memory} ->
+	    ok
+    end,
+    stdlib_strtol(PIDM,[],#{},0),
+    Val = rvscorehw:load_register(PIDM,"a0"),
+    PIDMem ! kill,
+    ?assertEqual(4711,Val).
+-endif.
