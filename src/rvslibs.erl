@@ -16,7 +16,7 @@ save_string(PIDM,Val,Loc) ->
 		I+1
 	end,
     lists:foldl(F,Loc,Val),
-    rvscorehw:save_memory(PIDM,Loc+length(Val),0).
+    rvscorehw:save_memory(PIDM,Loc+length(Val),0,char).
 
 load_string(PIDM,Loc) ->
     load_string(PIDM,Loc,[],0).

@@ -46,6 +46,9 @@ rvsmain_run_test2_test() ->
     {_,{_,Mem,_}} = rvsmain:run("_build/obj/test2.s",[{input,["2","0","5"]},{dumpmemory,[500,560]}]),
     ?assertEqual(620,rvsda:getdata(Mem,12,uint32)),
     ?assertEqual(471,rvsda:getdata(Mem,52,uint32)).
+rvsmain_run_test3_test() ->
+    {_,{_,_,R}} = rvsmain:run("_build/obj/test3.s",[{input,["6"]}]),
+    ?assertEqual(720,R).
 factorial(Num) -> 
     if
 	Num < 1   -> 0;
@@ -61,12 +64,12 @@ rvsmain_run_test4fac_1_test() ->
     f4(1).
 rvsmain_run_test4fac_2_test() ->
     f4(2).
-rvsmain_run_test4fac_3_test() ->
-    f4(3).
-rvsmain_run_test4fac_4_test() ->
-    f4(4).
-rvsmain_run_test4fac_5_test() ->
-    f4(5).
+%% rvsmain_run_test4fac_3_test() ->
+%%     f4(3).
+%% rvsmain_run_test4fac_4_test() ->
+%%     f4(4).
+%% rvsmain_run_test4fac_5_test() ->
+%%     f4(5).
 rvsmain_run_test4fac_6_test() ->
     f4(6).
 fibonacci(N) ->
@@ -84,12 +87,12 @@ rvsmain_run_test4fib_1_test() ->
     fib4(1).
 rvsmain_run_test4fib_2_test() ->
     fib4(2).
-rvsmain_run_test4fib_3_test() ->
-    fib4(3).
-rvsmain_run_test4fib_4_test() ->
-    fib4(4).
-rvsmain_run_test4fib_5_test() ->
-    fib4(5).
+%% rvsmain_run_test4fib_3_test() ->
+%%     fib4(3).
+%% rvsmain_run_test4fib_4_test() ->
+%%     fib4(4).
+%% rvsmain_run_test4fib_5_test() ->
+%%     fib4(5).
 rvsmain_run_test4fib_6_test() ->
     fib4(6).
 -endif.

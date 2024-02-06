@@ -54,15 +54,17 @@ do_operation(PIDM, Op, Defines,PC) ->
 	    {ok,jump,maps:get(Target,Labels,-1)};
 	"call" ->
 	    ok = save_register(PIDM,"ra",PC+1),
+	    do_operation(PIDM,["tail",lists:last(Op)],Defines,PC);
+	"tail" ->
 	    Props = case maps:find(lists:last(Op),Globals) of
 		{ok,M} -> M;
 		error -> throw({"rvscorehw, do_operation: Target not a Global",lists:last(Op)})
 	    end,
-	    logger:debug("call: Props ~p",[Props]),
+	    logger:debug("tail: Props ~p",[Props]),
 	    case maps:get(type,Props) of
 		"@function" ->
 		    Target = maps:get(lists:last(Op),Labels),
-		    logger:info("call Target (~p, ~p)",[lists:last(Op),Target]),
+		    logger:info("tail Target (~p, ~p)",[lists:last(Op),Target]),
 		    {ok,jump,Target};
 		"@extern_function" ->
 		    logger:info("execute extern funktion ~p", [lists:last(Op)]),
@@ -70,8 +72,8 @@ do_operation(PIDM, Op, Defines,PC) ->
 		_R ->
 		    throw({"neither local nor extern function called",_R})
 	    end;
-	"tail" ->
-	    do_operation(PIDM,["call",lists:last(Op)],Defines,PC);
+	%%"tail" ->
+	%%    do_operation(PIDM,["call",lists:last(Op)],Defines,PC);
 	"sw" ->
 	    [_|[Arg|_]] = Op,
 	    do_op(PIDM,["sw"],lists:last(Op),calcop,[Arg],Defines);
