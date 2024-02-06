@@ -54,8 +54,22 @@ do_operation(PIDM, Op, Defines,PC) ->
 	    {ok,jump,maps:get(Target,Labels,-1)};
 	"call" ->
 	    ok = save_register(PIDM,"ra",PC+1),
-	    Target = maps:get(lists:last(Op),Labels),
-	    {ok,jump,Target};
+	    Props = case maps:find(lists:last(Op),Globals) of
+		{ok,M} -> M;
+		error -> throw({"rvscorehw, do_operation: Target not a Global",lists:last(Op)})
+	    end,
+	    logger:debug("call: Props ~p",[Props]),
+	    case maps:get(type,Props) of
+		"@function" ->
+		    Target = maps:get(lists:last(Op),Labels),
+		    logger:info("call Target (~p, ~p)",[lists:last(Op),Target]),
+		    {ok,jump,Target};
+		"@extern_function" ->
+		    logger:info("execute extern funktion ~p", [lists:last(Op)]),
+		    do_extern_function(PIDM,Op,Defines,PC);
+		_R ->
+		    throw({"neither local nor extern function called",_R})
+	    end;
 	"tail" ->
 	    do_operation(PIDM,["call",lists:last(Op)],Defines,PC);
 	"sw" ->
@@ -166,7 +180,10 @@ do_pat(Op,A,B) ->
 	"bgt" -> A > B;
 	"ble" -> A =< B;
 	"blt" -> A < B;
+	"and" -> A band B;
 	"andi" -> A band B;
+	"not" -> A bor -1;
+	"or" -> A bor B;
 	"ori" -> A bor B;
 	"xori" -> A bxor B;
 	%%"bgtu" -> A =< B;
@@ -232,43 +249,50 @@ save_to_location(PIDM, DA, Val,Globals) ->
 	    case rvsmemory:derive_address(PIDM,Globals,DA) of
 		{absval,Add} -> 
 		    logger:debug("try save in memory (absaddr): ~p: ~p",[Add,Val]),
-		    if Val =:= "zero" ->
-			    logger:debug("!!!!! store Val: zero at ~p",[Add]),
-			    save_memory(PIDM,Add,0);
-		       true ->
-			    logger:debug("!!!!! store ~p at ~p",[Val,Add]),
-			    save_memory(PIDM,Add, Val)
-		    end;
-		{"%lo",TVal} -> 
-		    logger:info("rvscorehw,save_to_location: %lo(~p)(Reg) is shorthand: ~p",
-				[TVal,DA]),
-		    Addd = setup_value(PIDM,DA,TVal),
-		    save_memory(PIDM,Addd,Val);
+		    %% if Val =:= "zero" ->
+		    %% 	    logger:debug("!!!!! store Val: zero at ~p",[Add]),
+		    %% 	    save_memory(PIDM,Add,0);
+		    %%    true ->
+		    logger:debug("!!!!! store ~p at ~p",[Val,Add]),
+		    save_memory(PIDM,Add, Val);
+		%% end;
+		%% {"%lo",TVal} -> 
+		%%     logger:info("rvscorehw,save_to_location: %lo(~p)(Reg) is shorthand: ~p",
+		%% 		[TVal,DA]),
+		%%     Addd = setup_value(PIDM,DA,TVal),
+		%%     save_memory(PIDM,Addd,Val);
 		_R -> logger:error("rvscorehw,save_to_location: ~p not supported yet",[_R])
 	    end
     end.
 
-setup_value(PIDM,DA,Val) ->
-    logger:info("setup_register ~p ~p",[DA,Val]),
-    L = lists:foldl(fun(W,Acc)->Acc++string:split(W,")") end, [], string:split(DA,"(",all)),
-    Reg = 
-	case length(L) of
-	    5 ->
-		[_,_,_,R,_] = L,
-		R;
-	    _ ->
-		logger:error("setup_register fails ~p not short hand",[DA]),
-		error
-	end,
-    maps:get(registers,PIDM) ! { self(), load, Reg },
-    TimeOut = 100,
-    V = receive
-	    {ok, VV} ->
-		VV
-	after
-	    TimeOut -> timeout
-	end,
-    Val+V.
+%% setup_value(PIDM,DA,Val) ->
+%%     logger:info("setup_register ~p ~p",[DA,Val]),
+%%     L = lists:foldl(fun(W,Acc)->Acc++string:split(W,")") end, [], string:split(DA,"(",all)),
+%%     Reg = 
+%% 	case length(L) of
+%% 	    5 ->
+%% 		[_,_,_,R,_] = L,
+%% 		R;
+%% 	    _ ->
+%% 		logger:error("setup_register fails ~p not short hand",[DA]),
+%% 		error
+%% 	end,
+%%     maps:get(registers,PIDM) ! { self(), load, Reg },
+%%     TimeOut = 100,
+%%     V = receive
+%% 	    {ok, VV} ->
+%% 		VV
+%% 	after
+%% 	    TimeOut -> timeout
+%% 	end,
+%%     Val+V.
+
+do_extern_function(PIDM, Op, Defines, PC) ->
+    Ra = load_register(PIDM,"ra"),
+    logger:debug("do_extern_function Op: ~p, PC: ~p, ra: ~p",[Op,PC,Ra]),
+    rvslibs:stdlib(PIDM,Op,Defines,PC),
+    ok = save_register(PIDM,"ra",PC+1),
+    do_operation(PIDM,["jr","ra"],Defines,PC+1).
 
 save_register(PIDM,Reg,Val)->
     logger:info("rvscorehw,save_register: ~p -> ~p",[Val, Reg]),
@@ -424,6 +448,9 @@ opstypetest_test() ->
     {ok,jump,Target}=
 	do_op(PIDM,["bltz","a20",".L3"],"a1",branchop,["a20"],{Globals,#{".L3" => 57}}),
     ?assertEqual(-1,Target),
+    save_register(PIDM,"a5",0),
+    {SArg,_} = get_arguments(PIDM,["%lo(buffer)(a5)"],Globals),
+    ?assertEqual(123,SArg),
     exit(PIDReg,kill),exit(PIDMem,kill).
 get_arguments_test() ->
     PIDReg = spawn(rvscorehw,registers,[init,32,0]),

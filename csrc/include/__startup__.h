@@ -19,7 +19,7 @@ asm (".text\n\t"
      ".globl\tsysargs\n\t"
      ".addr\tsysargs, 4000\n\t");
 
-int32_t main(int32_t argc, int32_t *argv);
+int32_t main(int32_t argc, char **argv);
 
 void __attribute__ ((noinline)) loader(void) {
   asm ("lui a5,%hi(sysargs)\n\t"

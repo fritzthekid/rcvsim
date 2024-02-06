@@ -37,15 +37,15 @@ rvsmain_run_test() ->
     rvsmain_run("",[]).
 rvsmain_run_test1_test() ->
     {_,{_,Mem,_}} = rvsmain:run("_build/obj/test1.s",[{dumpmemory,[400,415]}]),
-    A=maps:get(400,maps:from_list(Mem)),
-    B=maps:get(404,maps:from_list(Mem)),
-    C=maps:get(408,maps:from_list(Mem)),
-    ?assertEqual(A+B+((A*C) bsr 1),maps:get(412,maps:from_list(Mem))),
+    A=rvsda:getdata(Mem,0,int32),
+    B=rvsda:getdata(Mem,4,int32),
+    C=rvsda:getdata(Mem,8,int32),
+    ?assertEqual(A+B+((A*C) bsr 1),rvsda:getdata(Mem,12,int32)),
     ok.
 rvsmain_run_test2_test() ->
-    {_,{_,Mem,_}} = rvsmain:run("_build/obj/test2.s",[{input,[2,0,5]},{dumpmemory,[500,560]}]),
-    ?assertEqual(620,maps:get(512,maps:from_list(Mem))),
-    ?assertEqual(471,maps:get(552,maps:from_list(Mem))).
+    {_,{_,Mem,_}} = rvsmain:run("_build/obj/test2.s",[{input,["2","0","5"]},{dumpmemory,[500,560]}]),
+    ?assertEqual(620,rvsda:getdata(Mem,12,uint32)),
+    ?assertEqual(471,rvsda:getdata(Mem,52,uint32)).
 factorial(Num) -> 
     if
 	Num < 1   -> 0;
@@ -53,7 +53,7 @@ factorial(Num) ->
 	true      -> Num * factorial(Num-1)
     end.
 f4(I) ->
-    case rvsmain:run("_build/obj/test4.s",[{input,[I]}]) of
+    case rvsmain:run("_build/obj/test4.s",[{input,[integer_to_list(I)]}]) of
 	{_,{_,_,Ret}} -> ?assertEqual(factorial(I),Ret);
 	_ -> ?assert(false)
     end.
@@ -76,7 +76,7 @@ fibonacci(N) ->
 	true -> fibonacci(N-1) + fibonacci(N-2)
     end.
 fib4(I) ->
-    case rvsmain:run("_build/obj/test4.s",[{input,[0,I]}]) of
+    case rvsmain:run("_build/obj/test4.s",[{input,["0",integer_to_list(I)]}]) of
 	{_,{_,_,Ret}} -> ?assertEqual(fibonacci(I),Ret);
 	_ -> ?assert(false)
     end.

@@ -10,6 +10,8 @@
  */
 
 #include <stdint-gcc.h>
+#include <stdlib.h>
+
 #ifdef __NOTRISCV__
 #include <stdio.h>
 #else
@@ -24,7 +26,7 @@ asm (".text\n\t"
 #endif
 
 int32_t fibonacci(int32_t number) {
-    // Von 0 bis 2 entspricht die Fibonacci-Zahl der Eingabe
+  // Von 0 bis 2 entspricht die Fibonacci-Zahl der Eingabe
   if (number < 0) {
     return 0;
   } else if (number < 2) {
@@ -42,13 +44,14 @@ int32_t __attribute__ ((noinline)) factorial(int32_t c, int32_t res) {
   return res;
 }
 
-int32_t __attribute__ ((noinline)) main(int32_t argc, int32_t *argv) {
-  int32_t fac,fib,com;
-  fac=0;fib=0,com=0;
+int32_t  main(int32_t argc, char **argv) {
+  int32_t fac,fib;
+  fac=0;fib=0;
   if (argc <= 0) return 0;
-  fac = factorial(argv[0],1);
+  fac = factorial(strtol(argv[0]),1);
   if (argc > 1) {
-    fib = fibonacci(argv[1]);
+    fib = fibonacci(strtol(argv[1]));
   }
-  return fib+fac+com;
+  return fib+fac;
 }
+

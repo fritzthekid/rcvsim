@@ -1,5 +1,6 @@
 -module(rvsda).
 -compile(export_all).
+%%-export([new/2,numtobin/2,bintonum/2,putdata/4,put/4,getdata/3,get/3]).
 
 new(Size,Default) ->
     binary:copy(Default,Size).
@@ -15,21 +16,23 @@ maskinv(Val,Shift) ->
     
 numtobin(V,Type) ->
     L = case { Type, sign(V) }  of
-	{ uint16, _ } ->
-	    [mask(V,0),mask(V,8)];
-	{ uint32, _ } ->
-	    [mask(V,0),mask(V,8),mask(V,16),mask(V,24)];
-	{ int16, 1 } ->
-	    [mask(V,0),mask(V,8)];
-	{ int16, -1 } ->
-	    [maskinv(-V,0),maskinv(-V,8)];
-	{ int32, 1 } ->
-	    [mask(V,0),mask(V,8),mask(V,16),mask(V,24)];
-	{ int32, -1 } ->
-	    [maskinv(-V,0),maskinv(-V,8),maskinv(-V,16),maskinv(-V,24)];
-	{ char, _ } ->
-	    [mask(V,0)];
-	_R -> throw({"Type not known:",_R})
+	    { uint16, _ } ->
+		[mask(V,0),mask(V,8)];
+	    { uint32, _ } ->
+		[mask(V,0),mask(V,8),mask(V,16),mask(V,24)];
+	    { int16, 1 } ->
+		[mask(V,0),mask(V,8)];
+	    { int16, -1 } ->
+		[maskinv(-V,0),maskinv(-V,8)];
+	    { int32, 1 } ->
+		[mask(V,0),mask(V,8),mask(V,16),mask(V,24)];
+	    { int32, -1 } ->
+		[maskinv(-V,0),maskinv(-V,8),maskinv(-V,16),maskinv(-V,24)];
+	    { uint8, _ } ->
+		[mask(V,0)];
+	    { char, _ } ->
+		[mask(V,0)];
+	    _R -> throw({"Type not known:",_R})
     end,
     binary:list_to_bin(L).
 
@@ -43,7 +46,11 @@ put(Bin,Pos,Val,Len) ->
     <<Bin0/binary,Val/binary,Bin1/binary>>.
 
 lenoftype(Type) ->
-    maps:get(Type,#{char=>1,int16=>2,uint16=>2,int32=>4,uint32=>4,int=>4,uint8=>1}).
+    case maps:find(Type,#{char=>1,int16=>2,uint16=>2,int32=>4,uint32=>4,int=>4,uint8=>1}) of
+	error ->
+	    throw({"Type not known:",Type});
+	{ok,Len} -> Len
+    end.
 
 bintonum(Bin,Type) ->
     Len = lenoftype(Type),
@@ -56,7 +63,6 @@ bintonum(Bin,Type) ->
 		 Sign = if H band (1 bsl 7) > 0 -> -1; true -> 1 end,
 		 if Sign > 0 -> H*256+L; true -> -(1 bsl 16 -1)+(H*256+L) end;
 	uint32 -> [L,ML,MH,H] = Bytes, (H bsl 24)+(MH bsl 16)+(ML bsl 8)+L;
-	int ->   bintonum(Bin,int32);
 	int32 -> [L,ML,MH,H] = Bytes,
 		 Sign=if H band (1 bsl 7) > 0 -> -1; true -> 1 end,
 		 %%logger:info("getdata ~p ~p ~p ~p: sign ~p",[L,ML,MH,H,Sign]),
@@ -94,10 +100,6 @@ memory(Memory) ->
 	    end,
 	    PID ! ok,
 	    memory(Mem);
-	{PID,get,Pos,Type} ->
-	    Val=getdata(Memory,Pos,Type),
-	    PID ! {ok,Val},
-	    memory(Memory);
 	{PID,dump} ->
 	    PID ! {ok,Memory},
 	    memory(Memory)
@@ -118,7 +120,7 @@ rvsda_load_store_test()->
 			      ok -> ok;
 			      _R -> ?assert(false)
 			  after
-			      TimeOut -> ?assert(false)
+			      TimeOut -> throw("Timeout waiting for memory")
 			  end
 		  end,lists:seq(0,Len-1,4)),
     PID ! {self(),dump},
@@ -128,7 +130,7 @@ rvsda_load_store_test()->
 		   Mem;
 	       _R -> ?assert(false)
 	   after
-	       TimeOut -> ?assert(false)
+	       TimeOut -> throw("Timeout Dump")
 	   end,
     logger:notice("Bin0 Size: ~p,Bin1 Size ~p",[byte_size(Bin0),byte_size(Bin1)]),
     ?assertEqual(Bin0,Bin1),
@@ -141,5 +143,15 @@ rvsda_number_test() ->
 		  end, lists:seq(-(1 bsl 15)+1,(1 bsl 15)-1)),
     lists:foreach(fun(I)->
 			  ?assertEqual(I,getdata(putdata(Bin,4,I,int32),4,int32))
-		  end, lists:seq(-(1 bsl 18)+1,(1 bsl 18)-1)).
+		  end, lists:seq(-(1 bsl 18)+1,(1 bsl 18)-1)),
+    ?assertEqual(65535,bintonum(numtobin(65535,uint16),uint16)),
+    ?assertEqual(0,bintonum(numtobin(65535,int16),int16)),
+    ?assertEqual((1 bsl 32)-1,bintonum(numtobin((1 bsl 32)-1,uint32),uint32)),
+    ?assertEqual(0,bintonum(numtobin((1 bsl 32)-1,int32),int32)),
+    ?assertEqual(255,bintonum(numtobin(255,uint8),uint8)),
+    ?assertEqual(255,bintonum(numtobin(255,char),char)),
+    ?assertEqual(0,bintonum(numtobin(256,uint8),uint8)),
+    ?assertException(throw,_,numtobin(100,int7)),
+    ?assertException(throw,_,bintonum(<<7>>,int7)),
+    ok.
 -endif.

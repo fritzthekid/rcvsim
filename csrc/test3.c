@@ -1,4 +1,6 @@
 #include <stdint-gcc.h>
+#include <stdlib.h>
+
 #ifdef __NOTRISCV__
 #include <sdtio.h>
 #else
@@ -17,12 +19,10 @@ int32_t __attribute__ ((noinline)) myfunc(int32_t e, int32_t f, int32_t g, int32
   return (e*f)+g;
 }
 
-int32_t __attribute__ ((noinline)) main(int32_t argc, int32_t *argv) {
+int32_t main(int32_t argc, char **argv) {
   int32_t retval;
-  retval = myfunc(argv[0],argv[1],argv[2],&argv[3]);
+  int32_t out;
+  retval = myfunc(strtol(argv[0]),strtol(argv[1]),strtol(argv[2]),out);
   retval = retval*retval;
-#ifdef WITHMAIN
-  printf("",argv[0],argv[1],argv[2],argv[3]);
-#endif
   return retval;
 }

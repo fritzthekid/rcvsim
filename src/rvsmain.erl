@@ -65,11 +65,18 @@ update_sysargs(PIDM,Values) ->
     if 
 	is_list(Values) ->
 	    rvscorehw:save_memory(PIDM,4000,length(Values)),
-	    F = fun(X,I) -> 
-			rvscorehw:save_memory(PIDM,4004+I,X),
-			I+4
+	    F = fun(X,{I,LI}) -> 
+			case is_list(X) of
+			    true ->
+				rvscorehw:save_memory(PIDM,4004+I,LI),
+				rvslibs:save_string(PIDM,X,LI),
+				{I+4,LI+length(X)+1};
+			    _ ->
+				rvscorehw:save_memory(PIDM,4004+I,X),
+				{I+4,LI}
+			end
 		end,
-	    lists:foldl(F,0,Values);
+	    lists:foldl(F,{0,4100},Values);
 	true ->
 	    throw({"input values not an array, usage {input,[1,2,3]}, but",Values})
     end.
@@ -119,9 +126,10 @@ dump_memory(PIDM, A, E) ->
     case Memory of
 	timeout -> timeout;
 	_ -> 
-	    lists:foldl(fun(V,Acc)->
-				Acc ++ [{V,rvsda:getdata(Memory,V,int32)}]
-			end, [], lists:seq(A,E))
+	    LMem = lists:foldl(fun(V,Acc)->
+				Acc ++ [binary:at(Memory,V)]
+			end, [], lists:seq(A,E)),
+	    binary:list_to_bin(LMem)
     end.
 
 -ifdef(REBARTEST).
