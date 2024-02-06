@@ -14,7 +14,7 @@ int32_t __attribute__ ((noinline)) strtol(char *str) {
        ".globl\trvs_strtol_extern\n\t"
        ".type\trvs_strtol_extern, @extern_function\n\t");
   ret = rvs_strtol_extern(str);
-  asm ( "nop\n\t" );
+  asm ( "\n\t" );
   return ret;
 }
 
