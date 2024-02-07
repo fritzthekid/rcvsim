@@ -47,7 +47,7 @@ do_operation(PIDM, Op, Defines,PC) ->
 	"ret" ->
 	    do_operation(PIDM,["jr","ra"],Defines,PC);
 	"jr" -> %% jump register
-	    {Target,_} = get_arguments(PIDM,[lists:last(Op)],Globals),
+	    {Target,_} = get_arguments(PIDM,[lists:last(Op)],Globals,uint32),
 	    {ok,jump,Target};
 	"j" -> %% jump label
 	    Target = lists:last(Op),
@@ -77,6 +77,9 @@ do_operation(PIDM, Op, Defines,PC) ->
 	"sw" ->
 	    [_|[Arg|_]] = Op,
 	    do_op(PIDM,["sw"],lists:last(Op),calcop,[Arg],Defines);
+	"sb" ->
+	    [_|[Arg|_]] = Op,
+	    do_op(PIDM,["sb"],lists:last(Op),calcop,[Arg],Defines);
 	_ ->
 	    case opstype(Op) of
 		{nop,nop,nop} ->
@@ -107,18 +110,26 @@ opstype(Op) ->
 	   catch error:_ -> {nop,nop,nop}
     end.
 
+ops_datatype(Op) ->
+    IsMemUB = lists:member(hd(Op), ["lbu","sb"]),
+    case { IsMemUB } of
+	{ true } -> uint8;
+	_ -> int32
+    end.
+	    
+	    
 do_op(_,["nop"],_,_,_,_) ->
     ok;
 do_op(PIDM,Op,DA,OpType,ArgsList,{Globals,Labels}) ->
     logger:debug("do_op: Op ~p",[Op]),
-    {A,B} = get_arguments(PIDM,ArgsList,Globals),
+    {A,B} = get_arguments(PIDM,ArgsList,Globals,ops_datatype(Op)),
     PatResult = do_pat(Op,A,B),
     logger:debug("do_op: Op ~p, PatResult ~p, ArgsList ~p, Args ~p,~p",[Op,PatResult,ArgsList,A,B]),
     case {PatResult,OpType} of
 	{error,_} ->
 	    logger:notice("do_op: operation ~p unknown, do nop",[Op]);
 	{_,calcop} -> 
-	    save_to_location(PIDM, DA, PatResult,Globals);
+	    save_to_location(PIDM, DA, PatResult,Globals,ops_datatype(Op));
 	{_,branchop} ->
 	    case maps:is_key(lists:last(Op),Labels) of
 		true ->
@@ -148,7 +159,7 @@ do_pat(Op,A,B) ->
 	"rem" -> A rem B;
 	"bsl" -> A bsl B;
 	"bsr" -> A bsr B;
-	"addi" -> (A+B) rem (1 bsl 12); %% same as %lo(global)
+	"addi" -> A+(B rem (1 bsl 12)); %% same as %lo(global)
 	"lui" -> (A bsr 12) bsl 12;                    %% same as %hi(global)
 	"li" -> A;
 	"load" -> A;
@@ -167,9 +178,12 @@ do_pat(Op,A,B) ->
 	"seqi" -> Is = A=:=B, if Is -> 1; true -> 0 end;
 	"snei" -> Is = A=/=B, if Is -> 1; true -> 0 end;
 	"lw" -> A;
+	"lb" -> A;
+	"lbu" -> A;
 	"mv" -> A;
 	"mw" -> A;
 	"sw" -> A;
+	"sb" -> A;
 	"beqz" -> A =:= 0;
 	"bnez" -> A =/= 0;
 	"blez" -> A =< 0;
@@ -194,7 +208,7 @@ do_pat(Op,A,B) ->
 	    error
     end.
 
-get_argument(PIDM,A,Globals) ->
+get_argument(PIDM,A,Globals, OpsDaType) ->
     logger:debug("get_argument arg: ~p",[A]),
     case rvsutils:code_to_object(A) of 
 	{integer,Val,_} ->
@@ -203,11 +217,11 @@ get_argument(PIDM,A,Globals) ->
 	    load_register(PIDM,Name);
 	{memory_access_via_register,Ofs,Name} ->
 	    Add = load_register(PIDM,Name),
-	    load_memory(PIDM,Add+Ofs);
+	    load_memory(PIDM,Add+Ofs,OpsDaType);
 	{memory_access_via_global_hi,_,G} ->
 	    logger:debug("get_argument: memory_address_global_hi ~p",[G]),
 	    {_Prefix,Add} = rvsmemory:derive_address(PIDM,Globals,A),
-	    (Add bsr 4096) bsl 4096;
+	    (Add bsr 12) bsl 12;
 	{memory_access_via_global_lo,_,G} ->
 	    logger:debug("get_argument: memory_access_via_global_hi ~p",[G]),
 	    {_Prefix,Add} = rvsmemory:derive_address(PIDM,Globals,A),
@@ -220,7 +234,7 @@ get_argument(PIDM,A,Globals) ->
 		    Add = rvsmemory:make_it_integer(maps:get(addr,maps:get(G,Globals))),
 		    Offs = load_register(PIDM,Reg),
 		    logger:debug("get_arguments short hand, ~p,~p",[Add,Offs]),
-		    Val = load_memory(PIDM,Add+(Offs rem 4096)),
+		    Val = load_memory(PIDM,Add+(Offs rem 4096),OpsDaType),
 		    logger:debug("get_arguments short hand value, ~p",[Val]),
 		    Val;
 		_R ->
@@ -232,14 +246,15 @@ get_argument(PIDM,A,Globals) ->
 	    throw({"get argument failed ???",A})
     end.
 
-get_arguments(PIDM,ArgsL,Globals) ->
+get_arguments(PIDM,ArgsL,Globals,OpsDatatype) ->
     case length(ArgsL) of
-	1 -> { get_argument(PIDM,hd(ArgsL),Globals), 0};
-	2 -> [A,B] = ArgsL, { get_argument(PIDM,A,Globals),get_argument(PIDM,B,Globals) }; 
+	1 -> { get_argument(PIDM,hd(ArgsL),Globals,OpsDatatype), 0};
+	2 -> [A,B] = ArgsL, { get_argument(PIDM,A,Globals,OpsDatatype),
+			      get_argument(PIDM,B,Globals,	OpsDatatype) }; 
 	_R -> throw({"get argument fails (length different from 1 or 2):",_R})
     end.
 
-save_to_location(PIDM, DA, Val,Globals) ->
+save_to_location(PIDM, DA, Val,Globals,OpsDaType) ->
     logger:info("save to location ~p,~p",[DA,Val]),
     Regs = rvsutils:registernames(32),
     case lists:member(DA,Regs) of
@@ -256,7 +271,7 @@ save_to_location(PIDM, DA, Val,Globals) ->
 		    %% 	    save_memory(PIDM,Add,0);
 		    %%    true ->
 		    logger:debug("!!!!! store ~p at ~p",[Val,Add]),
-		    save_memory(PIDM,Add, Val);
+		    save_memory(PIDM,Add, Val,OpsDaType);
 		%% end;
 		%% {"%lo",TVal} -> 
 		%%     logger:info("rvscorehw,save_to_location: %lo(~p)(Reg) is shorthand: ~p",
@@ -451,7 +466,7 @@ opstypetest_test() ->
 	do_op(PIDM,["bltz","a20",".L3"],"a1",branchop,["a20"],{Globals,#{".L3" => 57}}),
     ?assertEqual(-1,Target),
     save_register(PIDM,"a5",0),
-    {SArg,_} = get_arguments(PIDM,["%lo(buffer)(a5)"],Globals),
+    {SArg,_} = get_arguments(PIDM,["%lo(buffer)(a5)"],Globals,int32),
     ?assertEqual(123,SArg),
     exit(PIDReg,kill),exit(PIDMem,kill).
 get_arguments_test() ->
@@ -462,7 +477,7 @@ get_arguments_test() ->
     Globals = #{"buffer" => #{addr => 400}},
     save_register(PIDM,"a21",400),
     ?assertEqual(400,load_register(PIDM,"a21")),
-    Args = get_arguments(PIDM,["0(a21)","%lo(buffer+12)"],Globals),
+    Args = get_arguments(PIDM,["0(a21)","%lo(buffer+12)"],Globals,int32),
     ?assertEqual({127,412},Args),
     ok = save_register(PIDM,"a0",17),
     ok = save_memory(PIDM,417,4720),
@@ -480,5 +495,5 @@ do_op_failures_test() ->
     ?assertException(throw,_,do_op(#{},["bge","7","3",".L3"],".L3",branchop,["7","3"],{#{},#{}})),
     ok = do_op(#{},["nop"],"nop",calcop,[],{}).
 do_save_to_location_test()->
-    ok=save_to_location(#{},"fi%(fritz)",0,#{"fritz" => #{addr => 7}}).
+    ok=save_to_location(#{},"fi%(fritz)",0,#{"fritz" => #{addr => 7}},int32).
 -endif.

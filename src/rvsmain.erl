@@ -19,7 +19,11 @@ run(Filename,ConfigList) ->
     {ok, [Data]} = file:consult(ROOT ++ "/data/" ++ maps:get(dataname,Config)),
     PIDRegs = spawn(rvscorehw, registers, [init,maps:get(registers,Config),0]),
     PIDMem =  spawn(rvsmemory, memory, [init,maps:get(memory,Config),100]),
-    PIDM = maps:from_list([{registers,PIDRegs},{memory,PIDMem},{main,self()}]),
+    PIDio = spawn(rvsio,serialio_stdout,[]),
+    PIDwd = spawn(rvsio,watchdog,[[PIDMem,PIDio],maps:get(timeout_main,Config)/1000+2]),
+
+    PIDM = maps:from_list([{registers,PIDRegs},{memory,PIDMem},{main,self()},
+			   {stdout,PIDio}]),
     case maps:find(input,Config) of
 	{ok,Values} -> update_sysargs(PIDM,Values);
 	error -> ok
@@ -35,11 +39,11 @@ run(Filename,ConfigList) ->
 	    logger:notice("timeout main"),
 	    timeout
     end,
-    timer:sleep(1000),
+    timer:sleep(50),
     Output = output_config(PIDM,Config),
     logger:info("Config: ~p",[Config]),
     timer:sleep(100),
-    exit(PIDRegs,kill),exit(PIDMem,kill),
+    exit(PIDRegs,kill),exit(PIDMem,kill), exit(PIDwd,kill),exit(PIDio,kill),
     case is_process_alive(PIDCtrl) of
 	true -> exit(PIDCtrl,kill);
 	_ -> ok
@@ -96,6 +100,16 @@ output_config(PIDM, Config) ->
 	      _ ->
 		  []
 	  end,
+    case maps:find(dumpoutput,Config) of
+	{ok,[LA,LB]} ->
+	    LMem = dump_memory(PIDM,LA,LB),
+	    logger:notice("dumpoutput: ~s",[LMem]),
+	    maps:get(stdout,PIDM) ! {print, LMem};
+	{ok,_Reason} ->
+	    throw({"Usage {dumpoutput,[A,B]}: got: dumpoutput ,",_Reason});
+	_ ->
+	    ok
+    end,	
     RetVal = rvscorehw:load_register(PIDM,"a0"),
     {Regs,Mem,RetVal}.
 
