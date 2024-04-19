@@ -1,4 +1,6 @@
 #include <stdint-gcc.h>
+#include <stdlib.h>
+
 #include "__startup__.h"
 
 extern int32_t buffer[];
@@ -41,10 +43,10 @@ int32_t load_add_store() {
   return a+b;
 }
 
-int32_t main(int32_t argc, int32_t *argv) {
-  buffer[0] = argv[0];
-  buffer[1] = argv[1];
-  buffer[2] = argv[2];
+int32_t main(int32_t argc, char **argv) {
+  buffer[0] = strtol(argv[0]);
+  buffer[1] = strtol(argv[1]);
+  buffer[2] = strtol(argv[2]);
   load_add_store();
   return 0;
 }

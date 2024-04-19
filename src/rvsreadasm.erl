@@ -4,7 +4,7 @@
 readasm(Filename) ->
     Text = remove_comment(read_text_file_as_list(Filename)),
     rvsutils:write_terms("bck/rawprog_as_list.s",Text),
-    Globals = globals_maps(Text,"data/global-address-list.config"),
+    Globals = globals_maps(Text), %%"data/global-address-list.config"),
     {_,Labs,Code} = split_labels_code(Text),
     {Code,{Globals,maps:from_list(Labs)}}.
 
@@ -24,7 +24,7 @@ read_text_file_as_list(Filename) ->
 split_labels_code(Text) ->
     lists:foldl(fun split_line_labels_code/2,{0,[],[]},Text).
 split_line_labels_code(L,{I,Labs,Code}) ->
-    IsLabel = re:run(L,"^[\.a-zA-Z][a-zA-Z0-9_]+:"),
+    IsLabel = re:run(L,"^[\.a-zA-Z][\.a-zA-Z0-9_]+:"),
     IsCode = re:run(L,"^\t[a-z].*"),
     IsDirective = re:run(L,"^\t[\.].*"),
     case {IsLabel,IsCode,IsDirective} of
@@ -50,8 +50,8 @@ remove_comment(Text) ->
 			end
 		end, [H], T).
 
-globals_maps(Text,GlobalsFilename) ->
-    G=grep_globals(Text),
+globals_maps(Text) -> %%,GlobalsFilename) ->
+    G=sets:to_list(sets:from_list(grep_globals(Text))),
     SM=maps:from_list(prop_of_globals(Text,G,"size")),
     TM=maps:from_list(prop_of_globals(Text,G,"type")),
     AM=maps:from_list(prop_of_globals(Text,G,"addr")),
@@ -64,13 +64,14 @@ globals_maps(Text,GlobalsFilename) ->
 					     }
 					    ]
 				  end, [], G)),
-    case file:consult(GlobalsFilename) of
-	{ok,[L]} ->
-	    append_key_values(GM,L);
-	{error,Reason} ->
-	    logger:error("reading file (~s): ~p",[GlobalsFilename,Reason]),
-	    GM
-end.
+    GM.
+    %% case file:consult(GlobalsFilename) of
+    %% 	{ok,[L]} ->
+    %% 	    append_key_values(GM,L);
+    %% 	{error,Reason} ->
+    %% 	    logger:error("reading file (~s): ~p",[GlobalsFilename,Reason]),
+    %% 	    GM
+    %% end.
 
 append_key_values(M,[])-> M;
 append_key_values(M,[{G,K,V}|T]) ->
@@ -126,11 +127,21 @@ do_clean_line(L) ->
 
 grep_globals(Text) ->
     lists:foldl(fun(Line,Acc) ->
-			case re:run(Line,"\.globl") of
-			    nomatch ->
+			case { re:run(Line,"\.globl"), re:run(Line,"\.type") }  of
+			    {nomatch,nomatch} ->
 				Acc;
-			    {match,[{Left,Len}]} ->
-				Acc ++ [string:strip(lists:sublist(Line,Left+Len+2,80))];
+			    {{match,[{Le,Len}]},nomatch} ->
+				Acc ++ [string:strip(lists:sublist(Line,Le+Len+2,80))];
+			    {nomatch,{match,[{LLe,LLen}]}} ->
+				case re:run(lists:sublist(Line,LLe+LLen+2,80),".*,") of
+				    nomatch -> Acc;
+				    {match,[{_,LR}]} ->
+					L = lists:sublist(string:strip(
+							    lists:sublist(Line,8,80)),1,LR-1),
+					Acc ++ [L];
+				    _Default ->
+					Acc ++ [fritzerror]
+				end;
 			    _Default ->
 				Acc ++ [error]
 			end

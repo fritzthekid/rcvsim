@@ -1,8 +1,11 @@
 -module(rvsmemory).
 -compile(export_all).
 
-memory(init,Size,Filling) ->
-    memory(array:new(Size,{default,Filling})).
+memory(init,Size) ->
+    memory(binary:copy(<<0>>,Size)).
+
+memory(init,Size,_Filling) ->
+    memory(init,Size).
 
 memory(Memory) ->
     TimeOut = 2000,
@@ -13,17 +16,18 @@ memory(Memory) ->
 	{ PID, dump } ->
 	    PID ! {ok,Memory},
 	    memory(Memory);
-	{ PID, load, Address } ->
+	{ PID, load, Address, Len } ->
 	    logger:debug("memory load address ~p",[Address]),
 	    if 
 		Address < 0 ->
 		    logger:warning("load memory at address ~p",[Address]),
 		    PID ! {ok, 0};
 		true ->
-		    Size = array:size(Memory),
-		    if Address < Size ->
-			    logger:debug("memory load: address ~p: (get value ~p)",[Address,array:get(Address,Memory)]),
-			    PID ! {ok,array:get(max(0,Address),Memory)};
+		    Size = byte_size(Memory),
+		    if Address+Len < Size ->
+			    Value = rvsda:get(Memory,Address,Len),
+			    logger:debug("memory load: address ~p: (get value ~p)",[Address,Value]),
+			    PID ! {ok, Value};
 		       true -> 
 			    logger:error("memory load: address ~p > ~p)",[Address,Size]),
 			    PID ! {ok,0}
@@ -31,7 +35,8 @@ memory(Memory) ->
 	    end,
 	    memory(Memory);
 	{ PID, store, Address, Value } ->
-	    {Lower,Higher} = { (Address<0),(Address>=array:size(Memory)) },
+	    Len = byte_size(Value),
+	    {Lower,Higher} = { (Address<0),(Address>=(byte_size(Memory)+Len)) },
 	    logger:info("rvsmemory:memory access is (< 0): ~p or (>=Size): ~p",[Lower,Higher]),
 	    case {Lower,Higher} of
 		{true,_} ->
@@ -43,7 +48,9 @@ memory(Memory) ->
 		{_,_} ->
 		    logger:debug("memory store: ~p <- ~p",[Address,Value]),
 		    PID ! ok,
-		    memory(array:set(max(0,Address),Value,Memory))
+		    Bin1Size=byte_size(Memory)-Address-Len,
+		    <<Bin0:Address/binary,_:Len/binary,Bin1:Bin1Size/binary>> = Memory,
+		    memory(<<Bin0/binary,Value/binary,Bin1/binary>>)
 	    end
     after
 	TimeOut ->
@@ -123,8 +130,8 @@ memory_access_test() ->
 	TimeOutDummy ->
 	    ok
     end,
-    PIDMem = spawn(rvsmemory,memory,[init,40,0]),
-    PIDMem ! {self(), load, -1 },
+    PIDMem = spawn(rvsmemory,memory,[init,40]),
+    PIDMem ! {self(), load, -1, 1 },
     TimeOut = 100,
     receive
 	{ok,0} -> ?assert(true),ok;
@@ -134,7 +141,7 @@ memory_access_test() ->
 	    ?assert(false),
 	    ok
     end,
-    PIDMem ! {self(), load, 44 },
+    PIDMem ! {self(), load, 44, 4 },
     TimeOut1 = 100,
     receive
 	{ok,0} -> ?assert(true),ok;
@@ -146,18 +153,18 @@ memory_access_test() ->
     ?assertException(throw,_,rvscorehw:save_memory(#{memory => PIDMem},-1,0)),
     ?assertException(throw,_,rvscorehw:save_memory(#{memory => PIDMem},401,0)),
     PIDSelf = spawn(fun() -> ok end),
-    PIDMem ! {PIDSelf,store,-1,17},
+    PIDMem ! {PIDSelf,store,-1,<<17>>},
     exit(PIDMem,kill).
 dump_memory_test() ->
-    PIDReg = spawn(rvsmemory,memory,[init,40,0]),
-    PIDReg ! {self(),dump},
+    PIDMem = spawn(rvsmemory,memory,[init,40]),
+    PIDMem ! {self(),dump},
     receive
 	{ok,_Memory} ->
 	    ok
     end,
-    PIDReg ! kill.
+    PIDMem ! kill.
 timeout_memory_test()->
-    PIDReg = spawn(rvsmemory,memory,[init,40,0]),
+    PIDReg = spawn(rvsmemory,memory,[init,40]),
     timer:sleep(800),
     ?assertEqual(true,is_process_alive(PIDReg)),
     timer:sleep(1500),

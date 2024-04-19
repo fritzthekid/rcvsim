@@ -1,28 +1,34 @@
+/**
+ * test4 is about tail recursion
+ * three subroutines call each other with "tail call subroutine non-returnable"
+ * the inner algorithm solves factional algotihm.
+ */
+
 #include <stdint-gcc.h>
+#include <stdlib.h>
+
 #ifdef __NOTRISCV__
-#include <sdtio.h>
+#include <stdio.h>
 #else
 #include "__startup__.h"
 #endif
-  
-/* extern int32_t buffer[]; */
-/* #ifndef __NOTRISCV__ */
-/* asm (".text\n\t" */
-/*      ".globl\tbuffer\n\t" */
-/*      ".addr\tbuffer, 500\n\t"); */
-/* #endif */
 
-int32_t __attribute__ ((noinline)) myfunc(int32_t e, int32_t f, int32_t g, int32_t *out) {
-  out[0] = (e * f) + g;
-  return (e*f)+g;
+int32_t __attribute__ ((noinline)) factorial(int32_t c, int32_t res) {
+  if (c < 1) return res;
+  return factorial(c-1,c*res);
 }
 
-int32_t __attribute__ ((noinline)) main(int32_t argc, int32_t *argv) {
-  int32_t retval;
-  retval = myfunc(argv[0],argv[1],argv[2],&argv[3]);
-  retval = retval*retval;
-#ifdef WITHMAIN
-  printf("",argv[0],argv[1],argv[2],argv[3]);
-#endif
-  return retval;
+int32_t __attribute__ ((noinline)) do_somenumber(int32_t number) {
+  return factorial(number-2,1);
+}
+
+int32_t __attribute__ ((noinline)) somenumber(int32_t number) {
+  int32_t val = number+2;
+  return do_somenumber(val);
+}
+
+
+int32_t main(int32_t argc, char **argv) {
+  if ( argc < 1 ) return 0;
+  return somenumber(strtol(argv[0]));
 }
