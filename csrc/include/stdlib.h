@@ -7,6 +7,8 @@
 #define __STDLIB__H
 
 float atof(char *);
+
+#ifndef WITHMAIN
 int32_t __attribute__ ((noinline)) rvs_strtol_extern(char *);
 int32_t __attribute__ ((noinline)) strtol(char *str) {
   int32_t ret;
@@ -17,6 +19,7 @@ int32_t __attribute__ ((noinline)) strtol(char *str) {
   asm ( "\n\t" );
   return ret;
 }
+#endif
 
 static inline int32_t atoi(char * arg) {
   return strtol(arg);

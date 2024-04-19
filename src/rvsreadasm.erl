@@ -6,7 +6,7 @@ readasm(Filename) ->
     rvsutils:write_terms("bck/rawprog_as_list.s",Text),
     Globals = globals_maps(Text), %%"data/global-address-list.config"),
     {_,Labs,Code} = split_labels_code(Text),
-    {Code,{Globals,maps:from_list(Labs)}}.
+    {Code,{Globals,maps:from_list(Labs)},grep_strings(Text)}.
 
 read_text_file_as_list(Filename) ->
     [_|Text] = case file:read_file(Filename) of
@@ -38,6 +38,28 @@ split_line_labels_code(L,{I,Labs,Code}) ->
 	    logger:info("line no directive or code or comment: ~p",[L]),
 	    {I,Labs,Code}
     end.
+
+grep_strings(Text) ->
+    {_,LL} = lists:foldl(fun(Line,{I,Acc}) ->
+			     case re:run(Line,"[a-zA-Z_]+:") of
+				 {match,[{_,E}]} ->
+				     {I+1,Acc++[{lists:sublist(Line,E-1),I}]};
+				 _Default ->
+				     {I+1,Acc}
+			     end
+		     end, {1,[]}, Text),
+    LM = maps:from_list(LL),
+    LS =lists:foldl(fun(Lab,Acc) -> 
+			L = hd(lists:sublist(Text,maps:get(Lab,LM)+1,1)),
+			case re:run(L,"\.string\t") of
+			    {match,[{_,E}]} ->
+				SL = lists:sublist(L,E+3,length(L)-E-3),
+				Acc++[{Lab,SL}];
+			    _Default ->
+				Acc
+			end
+		    end, [], maps:keys(LM)),
+    maps:from_list(LS).
 
 remove_comment(Text) ->
     [H|T] = Text,

@@ -1,7 +1,9 @@
 #include <stdint-gcc.h>
 #include <stdlib.h>
 
+#ifndef WITHMAIN
 #include "__startup__.h"
+#endif
 
 extern int32_t buffer[];
 
