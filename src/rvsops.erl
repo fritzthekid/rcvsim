@@ -1,8 +1,8 @@
 - module(rvsops).
 
--export([disassemble/1]).
+-export([disassemble/1, disassembleraw/1]).
 
--nifs([disassemble/1]).
+-nifs([disassemble/1, disassembleraw/1]).
 
 -on_load(init/0).
 
@@ -10,6 +10,9 @@ init() ->
     erlang:load_nif("./_build/libs/rvsops", 0).
 
 disassemble(_X) ->
+    erlang:nif_error("NIF library not loaded").
+
+disassembleraw(_X) ->
     erlang:nif_error("NIF library not loaded").
 
 -ifdef(REBARTEST).

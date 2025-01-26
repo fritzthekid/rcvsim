@@ -46,9 +46,9 @@ int32_t load_add_store() {
 }
 
 int32_t main(int32_t argc, char **argv) {
-  buffer[0] = strtol(argv[0]);
-  buffer[1] = strtol(argv[1]);
-  buffer[2] = strtol(argv[2]);
+  buffer[0] = strtol(argv[0]); //,NULL,10);
+  buffer[1] = strtol(argv[1]); //,NULL,10);
+  buffer[2] = strtol(argv[2]); //,NULL,10);
   load_add_store();
   return 0;
 }
