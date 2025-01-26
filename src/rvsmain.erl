@@ -13,7 +13,7 @@ run(Filename,ConfigList) ->
     {ok, [RawConfig]}  = file:consult("data/rvs.config"),
     Config = lists:foldl(fun({X,Y},Map) -> maps:put(X,Y,Map) 
 			 end, RawConfig,ConfigList++[{programname,Filename}]),
-    {PP,Defines} = rvsreadasm:readasm(maps:get(programname,Config)),
+    {PP,Defines,Strings} = rvsreadasm:readasm(maps:get(programname,Config)),
     rvsutils:write_terms("_build/tmp/program.s",[PP]),
     rvsutils:write_terms("_build/tmp/globals_labels.config",[Defines]),
     {ok, [Data]} = file:consult(ROOT ++ "/data/" ++ maps:get(dataname,Config)),
@@ -24,11 +24,9 @@ run(Filename,ConfigList) ->
 
     PIDM = maps:from_list([{registers,PIDRegs},{memory,PIDMem},{main,self()},
 			   {stdout,PIDio}]),
-    case maps:find(input,Config) of
-	{ok,Values} -> update_sysargs(PIDM,Values);
-	error -> ok
-    end,
-    PIDCtrl = spawn(rvscorehw, control, [PIDM, PP, Defines, Data, 0]),
+    {Globals,Labels} = Defines,
+    NGlobals = linker(PIDM,Globals,Strings,Config),
+    PIDCtrl = spawn(rvscorehw, control, [PIDM, PP, {NGlobals,Labels}, Data, 0]),
     TimeOutMain = maps:get(timeout_main,Config),
     receive
 	ok ->
@@ -65,6 +63,24 @@ op_to_string(Operation) ->
 				      end
 			      end, [], tuple_to_list(Operation))).
 							     
+linker(PIDM,Globals,Strings,Config) ->
+    case maps:find(input,Config) of
+	{ok,Values} -> update_sysargs(PIDM,Values);
+	error -> ok
+    end,
+    {_,NGlobs} = lists:foldl(fun(S,{I,GG}) ->
+			maps:get(memory,PIDM) ! { self(),store,I,
+						  binary:list_to_bin(maps:get(S,Strings)) },
+			case maps:find(S,GG) of
+			    {ok,M} ->
+				N = maps:update(addr,I,M),
+				{I+length(maps:get(S,Strings))+1, maps:update(S,N,GG)};
+			    _Default ->
+				{I+length(maps:get(S,Strings))+1, maps:put(S,#{addr=>I},GG)}
+			end
+		end, {10000,Globals}, maps:keys(Strings)),
+    NGlobs.
+
 update_sysargs(PIDM,Values) ->
     if 
 	is_list(Values) ->

@@ -44,4 +44,7 @@ Here the best thing is how he/she spawns a local function.
 
 [RISC-V Assembler Reference](https://michaeljclark.github.io/asm.html)
 
+opcodes (bitgenau)
+[RISC-V Reference](https://www.cs.sfu.ca/~ashriram/Courses/CS295/assets/notebooks/RISCV/RISCV_CARD.pdf)
+
 

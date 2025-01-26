@@ -157,6 +157,7 @@ do_pat(Op,A,B) ->
 	"mul" -> A*B;
 	"neg" -> -1*A;
 	"rem" -> A rem B;
+	"remu" -> A rem B;
 	"bsl" -> A bsl B;
 	"bsr" -> A bsr B;
 	"addi" -> A+(B rem (1 bsl 12)); %% same as %lo(global)
@@ -164,7 +165,9 @@ do_pat(Op,A,B) ->
 	"li" -> A;
 	"load" -> A;
 	"slli" -> A bsl B;
+	"slai" -> A bsl B;
 	"srai" -> A bsr B;
+	"srli" -> A bsr B;
 	"sge" -> Is = A>=B, if Is -> 1; true -> 0 end;
 	"sgei" -> Is = A>=B, if Is -> 1; true -> 0 end;
 	"sle" -> Is = A=<B, if Is -> 1; true -> 0 end;
@@ -173,6 +176,7 @@ do_pat(Op,A,B) ->
 	"sgti" -> Is = A>B, if Is -> 1; true -> 0 end;
 	"slt" -> Is = A<B, if Is -> 1; true -> 0 end;
 	"slti" -> Is = A<B, if Is -> 1; true -> 0 end;
+	"sltiu" -> Is = A<B, if Is -> 1; true -> 0 end;
 	"seq" -> Is = A=:=B, if Is -> 1; true -> 0 end;
 	"sne" -> Is = A=/=B, if Is -> 1; true -> 0 end;
 	"seqi" -> Is = A=:=B, if Is -> 1; true -> 0 end;

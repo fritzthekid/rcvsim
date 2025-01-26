@@ -10,9 +10,12 @@ serialio_stdout(T) ->
 	    serialio_stdout(T);
 	kill ->
 	    ok;
-	{ print, message } ->
-	    io:format("~s~n",[message]),
-	    serialio_stdout(T)
+	{ print, Message } ->
+	    logger:debug("stdout: ~p",[Message]),
+	    io:format("STDOUT>> ~s~n",[Message]),
+	    serialio_stdout(T);
+	_Default ->
+	    logger:warning("stdout failed: ~p",[_Default])
     after
 	TimeOut ->
 	    logger:notice("serial_stdout timeout"),

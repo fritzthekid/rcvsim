@@ -5,6 +5,8 @@ stdlib(PIDM,Op,Defines,PC) ->
     case lists:last(Op) of
 	"rvs_strtol_extern" ->
 	    stdlib_strtol(PIDM,Op,Defines,PC);
+	"rvs_sendmessage_extern" ->
+	    rvslib_sendmessage(PIDM,Op,Defines,PC);
 	_R ->
 	    logger:notice("stdlib, ~p not defined",[_R])
     end.
@@ -42,6 +44,13 @@ stdlib_strtol(PIDM,_Op,_Defines,_PC) ->
     end,
     rvscorehw:save_register(PIDM,"a0",Val),
     ok.
+
+rvslib_sendmessage(PIDM,_Op,_Defines,_PC) ->
+    Ptr = rvscorehw:load_register(PIDM,"a0"),
+    Str = load_string(PIDM,Ptr),
+    maps:get(stdout,PIDM) ! { print, Str },
+    ok.
+    
 
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").
