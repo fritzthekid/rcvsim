@@ -8,7 +8,12 @@
 -module(rvscorehw).
 -compile(export_all).
 
-%% Control the execution flow of the program
+%% -------------------------------------------------------------------
+%% @doc
+%% Controls the execution of the program by fetching and executing instructions.
+%%
+%% @spec control(pid(), list(), {map(), map()}, list(), integer()) -> ok
+%% -------------------------------------------------------------------
 control(PIDM, Program, Defines, Data, PC) ->
     case maps:find(PC, maps:from_list(Program)) of
         {ok, Inst} ->
@@ -42,7 +47,11 @@ control(PIDM, Program, Defines, Data, PC) ->
             end
     end.
 
-%% Perform the specified operation
+%% -------------------------------------------------------------------
+%% @doc
+%% Executes a single operation based on the instruction provided.
+%%
+%% @spec do_operation(pid(), list(), {map(), map()}, integer()) -> ok | {ok, exit} | {ok, jump, integer()}
 do_operation(_, ["nop"], _, _) ->
     logger:info("do_operation: nop, do nothing"),
     ok;
@@ -102,7 +111,12 @@ do_operation(PIDM, Op, Defines, PC) ->
             end
     end.
 
-%% Determine the type of operation
+%% -------------------------------------------------------------------
+%% @doc
+%% Determines the operation type and arguments from the given instruction.
+%%
+%% @spec opstype(list()) -> {atom(), list(), atom()} | {nop, nop, nop}
+%% -------------------------------------------------------------------
 opstype(Op) ->
     try 
         case hd(hd(Op)) of
@@ -120,7 +134,12 @@ opstype(Op) ->
     catch error:_ -> {nop, nop, nop}
     end.
 
-%% Determine the data type for operations
+%% -------------------------------------------------------------------
+%% @doc
+%% Determines the data type for operations based on the instruction.
+%%
+%% @spec ops_datatype(list()) -> atom()
+%% -------------------------------------------------------------------
 ops_datatype(Op) ->
     IsMemUB = lists:member(hd(Op), ["lbu", "sb"]),
     case {IsMemUB} of
@@ -128,7 +147,12 @@ ops_datatype(Op) ->
         _ -> int32
     end.
 
-%% Perform the specified operation
+%% -------------------------------------------------------------------
+%% @doc
+%% Executes the operation and saves the result to the appropriate location.
+%%
+%% @spec do_op(pid(), list(), atom(), atom(), list(), {map(), map()}) -> ok
+%% -------------------------------------------------------------------
 do_op(_, ["nop"], _, _, _, _) ->
     ok;
 do_op(PIDM, Op, DA, OpType, ArgsList, {Globals, Labels}) ->
@@ -160,7 +184,12 @@ do_op(PIDM, Op, DA, OpType, ArgsList, {Globals, Labels}) ->
             end            
     end.
 
-%% Perform the specified pattern operation
+%% -------------------------------------------------------------------
+%% @doc
+%% Performs the arithmetic or logical operation specified by the instruction.
+%%
+%% @spec do_pat(list(), integer(), integer()) -> integer() | error
+%% -------------------------------------------------------------------
 do_pat(Op, A, B) ->
     logger:debug("do_pat(~p, ~p, ~p)", [Op, A, B]),
     case hd(Op) of
@@ -224,7 +253,12 @@ do_pat(Op, A, B) ->
             error
     end.
 
-%% Get a single argument value
+%% -------------------------------------------------------------------
+%% @doc
+%% Retrieves the value of the specified argument.
+%%
+%% @spec get_argument(pid(), term(), map(), atom()) -> integer()
+%% -------------------------------------------------------------------
 get_argument(PIDM, A, Globals, OpsDaType) ->
     logger:debug("get_argument arg: ~p", [A]),
     case rvsutils:code_to_object(A) of 
@@ -263,7 +297,12 @@ get_argument(PIDM, A, Globals, OpsDaType) ->
             throw({"get argument failed ???", A})
     end.
 
-%% Get multiple argument values
+%% -------------------------------------------------------------------
+%% @doc
+%% Retrieves the values of the specified arguments.
+%%
+%% @spec get_arguments(pid(), list(), map(), atom()) -> {integer(), integer()}
+%% -------------------------------------------------------------------
 get_arguments(PIDM, ArgsL, Globals, OpsDatatype) ->
     case length(ArgsL) of
         1 -> {get_argument(PIDM, hd(ArgsL), Globals, OpsDatatype), 0};
@@ -272,7 +311,12 @@ get_arguments(PIDM, ArgsL, Globals, OpsDatatype) ->
         _R -> throw({"get argument fails (length different from 1 or 2):", _R})
     end.
 
-%% Save value to the specified location
+%% -------------------------------------------------------------------
+%% @doc
+%% Saves the specified value to the given location (register or memory).
+%%
+%% @spec save_to_location(pid(), term(), integer(), map(), atom()) -> ok
+%% -------------------------------------------------------------------
 save_to_location(PIDM, DA, Val, Globals, OpsDaType) ->
     logger:info("save to location ~p, ~p", [DA, Val]),
     Regs = rvsutils:registernames(32),
@@ -301,7 +345,12 @@ save_to_location(PIDM, DA, Val, Globals, OpsDaType) ->
             end
     end.
 
-%% Perform external function
+%% -------------------------------------------------------------------
+%% @doc
+%% Executes an external function call.
+%%
+%% @spec do_extern_function(pid(), list(), map(), integer()) -> ok
+%% -------------------------------------------------------------------
 do_extern_function(PIDM, Op, Defines, PC) ->
     Ra = load_register(PIDM, "ra"),
     logger:debug("do_extern_function Op: ~p, PC: ~p, ra: ~p", [Op, PC, Ra]),
@@ -309,7 +358,12 @@ do_extern_function(PIDM, Op, Defines, PC) ->
     ok = save_register(PIDM, "ra", PC + 1),
     do_operation(PIDM, ["jr", "ra"], Defines, PC + 1).
 
-%% Save value to a register
+%% -------------------------------------------------------------------
+%% @doc
+%% Saves the specified value to the given register.
+%%
+%% @spec save_register(pid(), atom(), integer()) -> ok
+%% -------------------------------------------------------------------
 save_register(PIDM, Reg, Val) ->
     logger:info("rvscorehw, save_register: ~p -> ~p", [Val, Reg]),
     maps:get(registers, PIDM) ! {self(), store, Reg, Val},
@@ -324,7 +378,12 @@ save_register(PIDM, Reg, Val) ->
             throw({"save_register Reg, Val timeout", Reg, Val})
     end.
 
-%% Load value from a register
+%% -------------------------------------------------------------------
+%% @doc
+%% Loads the value from the specified register.
+%%
+%% @spec load_register(pid(), atom()) -> integer()
+%% -------------------------------------------------------------------
 load_register(PIDM, Reg) ->
     maps:get(registers, PIDM) ! {self(), load, Reg},
     TimeOut = 100,
@@ -336,7 +395,12 @@ load_register(PIDM, Reg) ->
             throw({"load_register Reg timeout", Reg})
     end.
 
-%% Save value to memory
+%% -------------------------------------------------------------------
+%% @doc
+%% Saves the specified value to the given memory address.
+%%
+%% @spec save_memory(pid(), integer(), integer()) -> ok
+%% -------------------------------------------------------------------
 save_memory(PIDM, Add, Val) ->
     save_memory(PIDM, Add, Val, int32).
 
@@ -353,7 +417,12 @@ save_memory(PIDM, Add, Val, Type) ->
             throw({"save_memory Add, Val timeout", Add, Val})
     end.
 
-%% Load value from memory
+%% -------------------------------------------------------------------
+%% @doc
+%% Loads the value from the specified memory address.
+%%
+%% @spec load_memory(pid(), integer()) -> integer()
+%% -------------------------------------------------------------------
 load_memory(PIDM, Add) ->
     load_memory(PIDM, Add, int32).
 
@@ -368,18 +437,33 @@ load_memory(PIDM, Add, Type) ->
             throw({"load_memory Add timeout", Add})
     end.
 
-%% Debugging function to dump registers
+%% -------------------------------------------------------------------
+%% @doc
+%% Dumps the current state of the registers.
+%%
+%% @spec dump(list()) -> list()
+%% -------------------------------------------------------------------
 dump(Registers) ->
     io:format("DumpRegisters: ~p~n", [Registers]),
     Registers.
 
-%% Initialize registers with a default value
+%% -------------------------------------------------------------------
+%% @doc
+%% Initializes the registers with the specified size and filling value.
+%%
+%% @spec registers(atom(), integer(), integer()) -> list()
+%% -------------------------------------------------------------------
 registers(init, Size, Filling) ->
     registers(lists:foldl(fun(X, Acc) -> 
                   Acc ++ [{X, Filling}] end,
               [], rvsutils:registernames(Size))).
 
-%% Handle register operations
+%% -------------------------------------------------------------------
+%% @doc
+%% Handles register operations (load, store, dump).
+%%
+%% @spec registers(list()) -> ok
+%% -------------------------------------------------------------------
 registers(Registers) ->
     TimeOut = 2000,
     RMap = maps:from_list(Registers),
