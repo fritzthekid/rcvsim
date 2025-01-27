@@ -1,3 +1,9 @@
+%% -------------------------------------------------------------------
+%% @doc
+%% This module handles input/output operations for the RISC-V Simulator.
+%% It includes serial I/O operations and watchdog functionality.
+%% -------------------------------------------------------------------
+
 -module(rvsio).
 -compile([export_all]).
 

@@ -1,3 +1,10 @@
+%% -------------------------------------------------------------------
+%% @doc
+%% This module provides data access utilities for the RISC-V Simulator.
+%% It includes functions for binary manipulation, data conversion, and
+%% memory operations.
+%% -------------------------------------------------------------------
+
 -module(rvsda).
 -compile(export_all).
 %-export([new/2, numtobin/2, bintonum/2, putdata/4, put/4, getdata/3, get/3]).

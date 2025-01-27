@@ -1,3 +1,10 @@
+%% -------------------------------------------------------------------
+%% @doc
+%% This module provides operations related to RISC-V instruction set
+%% processing. It includes functions for disassembling instructions and
+%% handling NIF (Native Implemented Functions) loading.
+%% -------------------------------------------------------------------
+
 -module(rvsops).
 
 -export([disassemble/1, disassembleraw/1]).

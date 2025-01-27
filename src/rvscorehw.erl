@@ -1,3 +1,10 @@
+%% -------------------------------------------------------------------
+%% @doc
+%% This module implements the core hardware operations and control logic
+%% for the RISC-V Simulator. It handles instruction execution, register
+%% and memory operations, and control flow.
+%% -------------------------------------------------------------------
+
 -module(rvscorehw).
 -compile(export_all).
 

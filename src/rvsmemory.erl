@@ -1,3 +1,10 @@
+%% -------------------------------------------------------------------
+%% @doc
+%% This module manages the memory operations for the RISC-V Simulator.
+%% It handles memory initialization, loading, storing, and address
+%% derivation.
+%% -------------------------------------------------------------------
+
 -module(rvsmemory).
 -compile(export_all).
 

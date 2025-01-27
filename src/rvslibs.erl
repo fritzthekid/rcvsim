@@ -1,3 +1,10 @@
+%% -------------------------------------------------------------------
+%% @doc
+%% This module contains the standard library functions for the RISC-V
+%% Simulator. It includes functions for string manipulation, message
+%% sending, and other utility functions used during simulation.
+%% -------------------------------------------------------------------
+
 -module(rvslibs).
 -compile([export_all]).
 
