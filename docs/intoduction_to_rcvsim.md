@@ -44,6 +44,15 @@ Run the simulator with a sample program:
 - rvsops: Provides functions for disassembling RISC-V instructions.
 - rvsreadasm: Reads and processes RISC-V assembly files.
 
+- rvsmain: Main entry point and core functionalities for the simulator.
+- rvsmemory: Handles memory management for the simulation.
+- rvsops: Provides functions for disassembling RISC-V instructions.
+- rvsreadasm: Reads and processes RISC-V assembly files.
+- rvsutils: Utility functions used across the simulator.
+- rvsda: Handles data access and manipulation within the simulator.
+- rvscorehw: Simulates core hardware functionalities of the RISC-V architecture.
+
+
 ## Example Usage
 
 Here is an example of how to use rcvsim to simulate a simple RISC-V program:
