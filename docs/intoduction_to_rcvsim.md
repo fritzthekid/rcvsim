@@ -1,4 +1,4 @@
-# Introduction to rcvsim
+# Introduction to rcvsim - RISC-V Simulator in Erlang
 ## Overview
 
 rcvsim is a RISC-V Simulator written in Erlang. It provides functionalities to simulate the execution of RISC-V assembly code, allowing users to test and verify their assembly programs in a controlled environment.
@@ -7,8 +7,8 @@ rcvsim is a RISC-V Simulator written in Erlang. It provides functionalities to s
 
 -    Erlang-based Simulator: Utilizes the Erlang programming language for concurrent and robust simulation.
 -    Support for RISC-V Instructions: Capable of simulating a wide range of RISC-V instructions.
--     Memory and Register Management: Includes modules for handling memory and registers during simulation.
--     Assembly Code Processing: Reads and processes RISC-V assembly files, extracting labels, code, and global variables.
+-    Memory and Register Management: Includes modules for handling memory and registers during simulation.
+-    Assembly Code Processing: Reads and processes RISC-V assembly files, extracting labels, code, and global variables.
 -    Extensible and Configurable: Designed to be extensible and configurable to meet various simulation needs.
 
 ## Getting Started
@@ -39,10 +39,10 @@ Run the simulator with a sample program:
 
 ## Modules
 
--     rvsmain: Main entry point and core functionalities for the simulator.
--     rvsmemory: Handles memory management for the simulation.
--     rvsops: Provides functions for disassembling RISC-V instructions.
--     rvsreadasm: Reads and processes RISC-V assembly files.
+- rvsmain: Main entry point and core functionalities for the simulator.
+- rvsmemory: Handles memory management for the simulation.
+- rvsops: Provides functions for disassembling RISC-V instructions.
+- rvsreadasm: Reads and processes RISC-V assembly files.
 
 ## Example Usage
 
