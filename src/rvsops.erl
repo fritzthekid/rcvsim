@@ -1,44 +1,70 @@
 %% -------------------------------------------------------------------
 %% @doc
-%% This module provides operations related to RISC-V instruction set
-%% processing. It includes functions for disassembling instructions and
-%% handling NIF (Native Implemented Functions) loading.
+%% This module provides functions for disassembling RISC-V instructions.
+%% The actual disassembly logic is implemented in a NIF (Native Implemented Function) library.
 %% -------------------------------------------------------------------
 
 -module(rvsops).
-
 -export([disassemble/1, disassembleraw/1]).
-
 -nifs([disassemble/1, disassembleraw/1]).
-
 -on_load(init/0).
 
-%% Initialize the NIF library
+%% -------------------------------------------------------------------
+%% @doc
+%% Initializes the NIF library.
+%%
+%% @spec init() -> ok | {error, term()}
+%% -------------------------------------------------------------------
 init() ->
     erlang:load_nif("./_build/libs/rvsops", 0).
 
-%% Fallback implementation if the NIF library is not loaded
+%% -------------------------------------------------------------------
+%% @doc
+%% Disassembles a RISC-V instruction.
+%%
+%% @spec disassemble(binary()) -> list() | no_return()
+%% -------------------------------------------------------------------
 disassemble(_X) ->
     erlang:nif_error("NIF library not loaded").
 
-%% Fallback implementation if the NIF library is not loaded
+%% -------------------------------------------------------------------
+%% @doc
+%% Disassembles a raw RISC-V instruction.
+%%
+%% @spec disassembleraw(binary()) -> list() | no_return()
+%% -------------------------------------------------------------------
 disassembleraw(_X) ->
     erlang:nif_error("NIF library not loaded").
 
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").
 
-%% Test for the addi instruction
+%% -------------------------------------------------------------------
+%% @doc
+%% Tests the disassemble function with an ADDI instruction.
+%%
+%% @spec addi_test() -> ok
+%% -------------------------------------------------------------------
 addi_test() ->
     ?assertEqual(["addi", "x14", "x0", "8"], disassemble(list_to_integer("00800713", 16))),
     ok.
 
-%% Test for the jal instruction
+%% -------------------------------------------------------------------
+%% @doc
+%% Tests the disassemble function with a JAL instruction.
+%%
+%% @spec jal_test() -> ok
+%% -------------------------------------------------------------------
 jal_test() ->
     ?assertEqual(["jal", "x1", "4"], disassemble(list_to_integer("004000ef", 16))),
     ok.
 
-%% Test for error handling
+%% -------------------------------------------------------------------
+%% @doc
+%% Tests the disassemble function with an invalid instruction to ensure it raises an error.
+%%
+%% @spec error_test() -> ok
+%% -------------------------------------------------------------------
 error_test() ->
     try
         case disassemble(0) of
@@ -48,5 +74,4 @@ error_test() ->
         error:Reason -> ?assertEqual(badarg, Reason)
     end,
     ok.
-
 -endif.
