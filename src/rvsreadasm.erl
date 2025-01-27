@@ -188,6 +188,12 @@ do_line(L) ->
             do_clean_line(string:strip(string:replace(T, "\t", " ", all)))
     end.
 
+%% -------------------------------------------------------------------
+%% @doc
+%% Cleans up a line of code by removing unnecessary characters and splitting it.
+%%
+%% @spec do_clean_line(string()) -> list()
+%% -------------------------------------------------------------------
 do_clean_line(L) ->
     logger:debug("clean line: ~p", [L]),
     LL = string:split(L, ",", all),
@@ -204,7 +210,7 @@ do_clean_line(L) ->
 
 %% -------------------------------------------------------------------
 %% @doc
-%% Greps global variables from the text.
+%% Extracts global variables from the text.
 %%
 %% @spec grep_globals(Text :: list()) -> list().
 %% -------------------------------------------------------------------
@@ -234,11 +240,17 @@ grep_globals(Text) ->
 %% @doc
 %% Extracts properties of global variables from the text.
 %%
-%% @spec prop_of_globals(Text :: list(), Globals :: list(), Prop :: string()) -> list().
+%% @spec prop_of_globals(list(), list(), string()) -> list()
 %% -------------------------------------------------------------------
 prop_of_globals(Text, Globals, Prop) ->
     prop_of_globals([], Globals, Text, Prop).
 
+%% -------------------------------------------------------------------
+%% @doc
+%% Helper function to extract properties of global variables from the text.
+%%
+%% @spec prop_of_globals(list(), list(), list(), string()) -> list()
+%% -------------------------------------------------------------------
 prop_of_globals(Acc, [], _, _) -> Acc;
 prop_of_globals(OAcc, [G | T], Text, Prop) ->
     NAcc = lists:foldl(fun(Line, Acc) ->
@@ -256,7 +268,9 @@ prop_of_globals(OAcc, [G | T], Text, Prop) ->
 
 %% -------------------------------------------------------------------
 %% @doc
-%% Test for list_text function.
+%% Tests listing text with line numbers.
+%%
+%% @spec list_text_test() -> ok
 %% -------------------------------------------------------------------
 list_text_test() ->
     Text = read_text_file_as_list("_build/obj/test1.s"),
@@ -264,14 +278,18 @@ list_text_test() ->
 
 %% -------------------------------------------------------------------
 %% @doc
-%% Test for read_text_file function.
+%% Tests reading a text file.
+%%
+%% @spec read_text_file_test() -> ok
 %% -------------------------------------------------------------------
 read_text_file_test() ->
     [error] = read_text_file_as_list("test/x/somefile").
 
 %% -------------------------------------------------------------------
 %% @doc
-%% Test for do_line function.
+%% Tests processing a line of code.
+%%
+%% @spec do_line_test() -> ok
 %% -------------------------------------------------------------------
 do_line_test() ->
     ?assertEqual(["nop"], do_line("\tnop")),
