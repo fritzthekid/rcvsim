@@ -1,14 +1,39 @@
+%% -------------------------------------------------------------------
+%% @doc
+%% This module provides functionalities to disassemble binary RISC-V
+%% instructions. It includes reading binary files, disassembling them,
+%% and converting them to human-readable formats.
+%% -------------------------------------------------------------------
+
 -module(rvsdis).
 -compile(export_all).
 
-%% Read binary file and return its content
+%% -------------------------------------------------------------------
+%% @doc
+%% This module provides functionalities to disassemble binary RISC-V
+%% instructions. It includes reading binary files, disassembling them,
+%% and converting them to human-readable formats.
+%% -------------------------------------------------------------------
+
+%% -------------------------------------------------------------------
+%% @doc
+%% Reads the content of a binary file.
+%%
+%% @spec read_binary(string()) -> binary()
+%% -------------------------------------------------------------------
 read_binary(Filename) ->
     {ok, Bin} = file:read_file(Filename),
     Bin.
 
-%% Try to disassemble a single instruction
+%% -------------------------------------------------------------------
+%% @doc
+%% Attempts to disassemble a word and returns the result.
+%%
+%% @spec try_disassemble(integer(), binary()) -> list() | error
+%% -------------------------------------------------------------------
 try_disassemble(I, Word) ->
     try
+        %%logger:info("try disassemble Word: ~p:~p~n",[I,Word]),
         case rvsops:disassembleraw(binary:decode_unsigned(Word)) of
             Res ->
                 io:format("~p: ~p~n", [integer_to_list(I, 16), Res]),
@@ -19,28 +44,49 @@ try_disassemble(I, Word) ->
         error
     end.
 
-%% Analyse the binary content and disassemble it
+%% -------------------------------------------------------------------
+%% @doc
+%% Analyzes the binary content of a file and disassembles it.
+%%
+%% @spec analyse(string()) -> list()
+%% -------------------------------------------------------------------
 analyse(Filename) ->
     Bin = read_binary(Filename),
     analyse(Bin, 0, byte_size(Bin) - 4 - 1).
 
+%% -------------------------------------------------------------------
+%% @doc
+%% Analyzes a binary by iterating from start to end positions.
+%%
+%% @spec analyse(binary(), integer(), integer()) -> list()
+%% -------------------------------------------------------------------
 analyse(Bin, Start, End) ->
     Count = byte_size(Bin) - 4,
     io:format("byte_size(Bin): ~p ~p~n", [byte_size(Bin), Count]),
     lists:foldl(fun(X, Acc) ->
-        Word = rvsda:get(Bin, X, 4),
-        RevWord = binary:list_to_bin(lists:reverse(binary:bin_to_list(Word))),
-        case try_disassemble(X, RevWord) of
-            error -> Acc;
-            Res -> Acc ++ [Res]
-        end
-    end, [], lists:seq(Start, End, 4)).
+                    Word = rvsda:get(Bin, X, 4),
+                    RevWord = binary:list_to_bin(lists:reverse(binary:bin_to_list(Word))),
+                    case try_disassemble(X, RevWord) of
+                        error -> Acc;
+                        Res -> Acc ++ [Res]
+                    end
+                end, [], lists:seq(Start, End, 4)).
 
-%% Extract instructions from the program
+%% -------------------------------------------------------------------
+%% @doc
+%% Extracts instructions from the program.
+%%
+%% @spec instractutions(list()) -> list()
+%% -------------------------------------------------------------------
 instractutions(Prog) ->
     lists:foldl(fun(X, Acc) -> Acc ++ tl(X) end, [], Prog).
 
-%% Convert register numbers to register names
+%% -------------------------------------------------------------------
+%% @doc
+%% Returns the name of the register corresponding to a value.
+%%
+%% @spec registername(integer()) -> string()
+%% -------------------------------------------------------------------
 registername(V) ->
     case V of
         0 -> "zero";
@@ -77,52 +123,85 @@ registername(V) ->
         31 -> "t6";
         _R -> error
     end.
-
-%% Determine whether the operand is a register or a value
+        
+%% -------------------------------------------------------------------
+%% @doc
+%% Reads the code operator based on the provided values.
+%%
+%% @spec readcodeoperator(list()) -> string() | integer()
+%% -------------------------------------------------------------------
 readcodeoperator([C, V]) ->
     if 
-        C == 0 -> V;
-        true -> registername(V)
+        C == 0 -> 
+            V;
+        true ->
+            registername(V)
     end.
 
-%% Convert a program into a readable format
+%% -------------------------------------------------------------------
+%% @doc
+%% Converts a program into a readable format.
+%%
+%% @spec readable(list()) -> list()
+%% -------------------------------------------------------------------
 readable(Prog) ->
     lists:foldl(fun([Addr, Inst], Acc) ->
-        case length(Inst) of
-            4 ->
-                [I, OP0, OP1, OP2] = Inst,
-                Acc ++ [[Addr, [I, 
-                    readcodeoperator(OP0),
-                    readcodeoperator(OP1),
-                    readcodeoperator(OP2)]]];
-            3 ->
-                [I, OP0, OP1] = Inst,
-                Acc ++ [[Addr, [I, 
-                    readcodeoperator(OP0),
-                    readcodeoperator(OP1)]]];
-            2 ->
-                [I, OP0] = Inst,
-                Acc ++ [[Addr, [I, 
-                    readcodeoperator(OP0)]]];
-            _R ->
-                Acc ++ [[Addr, (null)]]
-        end
-    end, [], Prog).
+                    case length(Inst) of
+                        4 ->
+                            [I, OP0, OP1, OP2] = Inst,
+                            Acc ++ [[Addr, [I, 
+                                readcodeoperator(OP0),
+                                readcodeoperator(OP1),
+                                readcodeoperator(OP2)]]];
+                        3 ->
+                            [I, OP0, OP1] = Inst,
+                            Acc ++ [[Addr, [I, 
+                                readcodeoperator(OP0),
+                                readcodeoperator(OP1)]]];
+                        2 ->
+                            [I, OP0] = Inst,
+                            Acc ++ [[Addr, [I, 
+                                readcodeoperator(OP0)]]];
+                        _R ->
+                            Acc ++ [[Addr, (null)]]
+                    end
+                end, [], Prog).
 
-%% Print the readable instructions to the console
+%% -------------------------------------------------------------------
+%% @doc
+%% Prints the readable format of the program.
+%%
+%% @spec printreadable(list()) -> ok
+%% -------------------------------------------------------------------
 printreadable(Prog) ->
     lists:foreach(fun([Addr, Inst]) -> 
-        io:format("~p: ~p~n", [Addr, Inst]) 
-    end, readable(Prog)).
+                      io:format("~p: ~p~n", [Addr, Inst]) 
+                  end, readable(Prog)).
 
-%% Convert binary to hex
+%% -------------------------------------------------------------------
+%% @doc
+%% Converts a binary to hexadecimal representation.
+%%
+%% @spec bin_to_hex(binary()) -> string()
+%% -------------------------------------------------------------------
 bin_to_hex(Bin) ->
     list_to_hex(binary:bin_to_list(Bin)).
 
-%% Convert a list to a hex string
+%% -------------------------------------------------------------------
+%% @doc
+%% Converts a list of integers to a hexadecimal string.
+%%
+%% @spec list_to_hex(list()) -> string()
+%% -------------------------------------------------------------------
 list_to_hex(L) ->
     list_to_hex(L, "0x").
 
+%% -------------------------------------------------------------------
+%% @doc
+%% Helper function to convert a list of integers to a hexadecimal string.
+%%
+%% @spec list_to_hex(list(), string()) -> string()
+%% -------------------------------------------------------------------
 list_to_hex([], R) -> R;
 list_to_hex(L, R) ->
     [H | TL] = L,
@@ -131,6 +210,13 @@ list_to_hex(L, R) ->
 
 -ifdef(REBARTEST).
 -include_lib("eunit/include/eunit.hrl").
+
+%% -------------------------------------------------------------------
+%% @doc
+%% Tests the analyse function.
+%%
+%% @spec analyse_test() -> ok
+%% -------------------------------------------------------------------
 analyse_test() ->
     P = analyse("_build/obj/test2.o"),
     ?assert(length(P) > 10),
