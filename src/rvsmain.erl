@@ -1,18 +1,24 @@
 -module(rvsmain).
 -compile([export_all]).
 
+%% Kill a list of processes
 kill(PIDL) ->
     lists:foreach(fun(X) -> exit(X,kill) end, PIDL).
 
+%% Run the simulator with default configuration
 run() ->
     run("_build/obj/simple-func.s",[]).
+
+%% Run the simulator with a specified filename
 run(Filename) ->
     run(Filename,[]).
+
+%% Run the simulator with a specified filename and configuration list
 run(Filename,ConfigList) ->
     ROOT="./",
     {ok, [RawConfig]}  = file:consult("data/rvs.config"),
     Config = lists:foldl(fun({X,Y},Map) -> maps:put(X,Y,Map) 
-			 end, RawConfig,ConfigList++[{programname,Filename}]),
+                         end, RawConfig,ConfigList++[{programname,Filename}]),
     {PP,Defines,Strings} = rvsreadasm:readasm(maps:get(programname,Config)),
     rvsutils:write_terms("_build/tmp/program.s",[PP]),
     rvsutils:write_terms("_build/tmp/globals_labels.config",[Defines]),
@@ -23,19 +29,19 @@ run(Filename,ConfigList) ->
     PIDwd = spawn(rvsio,watchdog,[[PIDMem,PIDio],maps:get(timeout_main,Config)/1000+2]),
 
     PIDM = maps:from_list([{registers,PIDRegs},{memory,PIDMem},{main,self()},
-			   {stdout,PIDio}]),
+                           {stdout,PIDio}]),
     {Globals,Labels} = Defines,
     NGlobals = linker(PIDM,Globals,Strings,Config),
     PIDCtrl = spawn(rvscorehw, control, [PIDM, PP, {NGlobals,Labels}, Data, 0]),
     TimeOutMain = maps:get(timeout_main,Config),
     receive
-	ok ->
-	    logger:debug("main got ok - and finishes regularily"),
-	    ok
+        ok ->
+            logger:debug("main got ok - and finishes regularly"),
+            ok
     after
-	TimeOutMain ->
-	    logger:notice("timeout main"),
-	    timeout
+        TimeOutMain ->
+            logger:notice("timeout main"),
+            timeout
     end,
     timer:sleep(50),
     Output = output_config(PIDM,Config),
@@ -43,123 +49,130 @@ run(Filename,ConfigList) ->
     timer:sleep(100),
     exit(PIDRegs,kill),exit(PIDMem,kill), exit(PIDwd,kill),exit(PIDio,kill),
     case is_process_alive(PIDCtrl) of
-	true -> exit(PIDCtrl,kill);
-	_ -> ok
+        true -> exit(PIDCtrl,kill);
+        _ -> ok
     end,
     {{maps:put(main,self(),PIDM),PIDCtrl},Output}.
 
+%% Convert a program to a list of strings
 program_to_strings(Program) ->
     lists:foldl(fun(Op, Acc) -> Acc ++ [op_to_string(Op)] end, [], Program).
 
+%% Convert an operation to a string
 op_to_string(Operation) ->
     list_to_tuple(lists:foldl(fun(X,Acc)->
-				      if 
-					  (is_number(X) or is_list(X)) ->
-					      Acc++[X]; 
-					  is_atom(X) ->
-					      Acc++[atom_to_list(X)];
-					  true ->
-					      Acc
-				      end
-			      end, [], tuple_to_list(Operation))).
-							     
+                                  if 
+                                      (is_number(X) or is_list(X)) ->
+                                          Acc++[X]; 
+                                      is_atom(X) ->
+                                          Acc++[atom_to_list(X)];
+                                      true ->
+                                          Acc
+                                  end
+                              end, [], tuple_to_list(Operation))).
+
+%% Linker function to update global addresses and store data in memory
 linker(PIDM,Globals,Strings,Config) ->
     case maps:find(input,Config) of
-	{ok,Values} -> update_sysargs(PIDM,Values);
-	error -> ok
+        {ok,Values} -> update_sysargs(PIDM,Values);
+        error -> ok
     end,
     {_,NGlobs} = lists:foldl(fun(S,{I,GG}) ->
-			maps:get(memory,PIDM) ! { self(),store,I,
-						  binary:list_to_bin(maps:get(S,Strings)) },
-			case maps:find(S,GG) of
-			    {ok,M} ->
-				N = maps:update(addr,I,M),
-				{I+length(maps:get(S,Strings))+1, maps:update(S,N,GG)};
-			    _Default ->
-				{I+length(maps:get(S,Strings))+1, maps:put(S,#{addr=>I},GG)}
-			end
-		end, {10000,Globals}, maps:keys(Strings)),
+                    maps:get(memory,PIDM) ! { self(),store,I,
+                                              binary:list_to_bin(maps:get(S,Strings)) },
+                    case maps:find(S,GG) of
+                        {ok,M} ->
+                            N = maps:update(addr,I,M),
+                            {I+length(maps:get(S,Strings))+1, maps:update(S,N,GG)};
+                        _Default ->
+                            {I+length(maps:get(S,Strings))+1, maps:put(S,#{addr=>I},GG)}
+                    end
+                end, {10000,Globals}, maps:keys(Strings)),
     NGlobs.
 
+%% Update system arguments in memory
 update_sysargs(PIDM,Values) ->
     if 
-	is_list(Values) ->
-	    rvscorehw:save_memory(PIDM,4000,length(Values)),
-	    F = fun(X,{I,LI}) -> 
-			case is_list(X) of
-			    true ->
-				rvscorehw:save_memory(PIDM,4004+I,LI),
-				rvslibs:save_string(PIDM,X,LI),
-				{I+4,LI+length(X)+1};
-			    _ ->
-				rvscorehw:save_memory(PIDM,4004+I,X),
-				{I+4,LI}
-			end
-		end,
-	    lists:foldl(F,{0,4100},Values);
-	true ->
-	    throw({"input values not an array, usage {input,[1,2,3]}, but",Values})
+        is_list(Values) ->
+            rvscorehw:save_memory(PIDM,4000,length(Values)),
+            F = fun(X,{I,LI}) -> 
+                    case is_list(X) of
+                        true ->
+                            rvscorehw:save_memory(PIDM,4004+I,LI),
+                            rvslibs:save_string(PIDM,X,LI),
+                            {I+4,LI+length(X)+1};
+                        _ ->
+                            rvscorehw:save_memory(PIDM,4004+I,X),
+                            {I+4,LI}
+                    end
+                end,
+            lists:foldl(F,{0,4100},Values);
+        true ->
+            throw({"input values not an array, usage {input,[1,2,3]}, but",Values})
     end.
 
+%% Output the configuration results
 output_config(PIDM, Config) ->
     Regs = case maps:find(dumpregs, Config) of
-	       {ok, _Range} ->
-		   dump_registers(PIDM);
-	       _ ->
-		   []
-	   end,
+               {ok, _Range} ->
+                   dump_registers(PIDM);
+               _ ->
+                   []
+           end,
     Mem = case maps:find(dumpmemory, Config) of
-	      {ok,[A,B]} ->
-		  dump_memory(PIDM,A,B);
-	      {ok,_R} ->
-		  throw({"Usage {dumpmemory,[A,B]}: got dumpmemory,",_R});
-	      _ ->
-		  []
-	  end,
+              {ok,[A,B]} ->
+                  dump_memory(PIDM,A,B);
+              {ok,_R} ->
+                  throw({"Usage {dumpmemory,[A,B]}: got dumpmemory,",_R});
+              _ ->
+                  []
+          end,
     case maps:find(dumpoutput,Config) of
-	{ok,[LA,LB]} ->
-	    LMem = dump_memory(PIDM,LA,LB),
-	    logger:notice("dumpoutput: ~s",[LMem]),
-	    maps:get(stdout,PIDM) ! {print, LMem};
-	{ok,_Reason} ->
-	    throw({"Usage {dumpoutput,[A,B]}: got: dumpoutput ,",_Reason});
-	_ ->
-	    ok
-    end,	
+        {ok,[LA,LB]} ->
+            LMem = dump_memory(PIDM,LA,LB),
+            logger:notice("dumpoutput: ~s",[LMem]),
+            maps:get(stdout,PIDM) ! {print, LMem};
+        {ok,_Reason} ->
+            throw({"Usage {dumpoutput,[A,B]}: got: dumpoutput ,",_Reason});
+        _ ->
+            ok
+    end,    
     RetVal = rvscorehw:load_register(PIDM,"a0"),
     {Regs,Mem,RetVal}.
 
+%% Dump the registers
 dump_registers(PIDM) ->
     maps:get(registers,PIDM) ! { self(), dump },
     TimeOutDump = 100,
     receive
-	{ok,Registers} ->
-	    Registers,
-	    lists:sort(fun({A,_},{B,_}) -> A < B end, Registers)
+        {ok,Registers} ->
+            Registers,
+            lists:sort(fun({A,_},{B,_}) -> A < B end, Registers)
     after
-	TimeOutDump ->
-	    logger:error("timeout dump_registers"),
-	    timeout
+        TimeOutDump ->
+            logger:error("timeout dump_registers"),
+            timeout
     end.
 
+%% Dump the memory contents
 dump_memory(PIDM, A, E) ->
     maps:get(memory,PIDM) ! { self(), dump },
     TimeOutDump = 100,
     Memory = receive
-		 {ok,Mem} ->
-		     Mem
-	     after
-		 TimeOutDump ->
-		     logger:error("timeout dump_memory"),
-		     timeout
-	     end,
+                 {ok,Mem} ->
+                     Mem
+             after
+                 TimeOutDump ->
+                     logger:error("timeout dump_memory"),
+                     timeout
+             end,
     case Memory of
-	timeout -> timeout;
-	_ -> 
-	    LMem = lists:foldl(fun(V,Acc)->
-				Acc ++ [binary:at(Memory,V)]
-			end, [], lists:seq(A,E)),
-	    binary:list_to_bin(LMem)
+        timeout -> timeout;
+        _ -> 
+            LMem = lists:foldl(fun(V,Acc)->
+                                Acc ++ [binary:at(Memory,V)]
+                            end, [], lists:seq(A,E)),
+            binary:list_to_bin(LMem)
     end.
 
 -ifdef(REBARTEST).
@@ -174,7 +187,7 @@ rvsmain_dump_register_and_timeout_dump_memory_test() ->
 rvsmain_kill_control_test() ->
     {_,_} = run(),
     timer:sleep(1000),
-    %%kill(PIDCtrl).	
+    %%kill(PIDCtrl).    
     ok.
 rvsmain_op_to_string_test() ->
     Result = op_to_string({"saf",asd,1,digraph:new()}),
