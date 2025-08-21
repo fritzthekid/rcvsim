@@ -8,6 +8,7 @@ permalink: /
 ## Overview
 
 rcvsim is a RISC-V Simulator written in Erlang. It provides functionalities to simulate the execution of RISC-V assembly code, allowing users to test and verify their assembly programs in a controlled environment.
+The projekt is case study. It must be extended by many aspects.
 
 ## Features
 
